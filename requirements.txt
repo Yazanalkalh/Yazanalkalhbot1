@@ -1,0 +1,6 @@
+This file tells Render which Python libraries to install.
+​هذا الملف يخبر Render بالمكتبات التي يجب تثبيتها.
+​aiogram==2.25.2
+Flask==2.2.2
+hijri-converter==2.3.1
+pytz
