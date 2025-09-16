@@ -15,9 +15,9 @@ def home():
     return "Bot server is running!"
 
 def run_web_server():
+    # Render يحدد المنفذ تلقائيًا
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
-
 # ---------------------------------------------------
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -66,10 +66,23 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot, storage=storage)
 start_time = datetime.datetime.now()
 
-# (حالات FSM تبقى كما هي)
+# ----------------- حالات FSM لإدارة الرسائل (النسخة الكاملة والمصححة) -----------------
 class AdminStates(StatesGroup):
     waiting_for_new_reply = State()
-    # ... (بقية الحالات كما هي في كودك)
+    waiting_for_new_reminder = State()
+    waiting_for_new_channel_message = State()
+    waiting_for_ban_id = State()
+    waiting_for_unban_id = State()
+    waiting_for_broadcast_message = State()
+    waiting_for_channel_id = State()
+    waiting_for_instant_channel_post = State()
+    waiting_for_schedule_time = State()
+    waiting_for_welcome_message = State()
+    waiting_for_reply_message = State()
+    waiting_for_media_reject_message = State()
+    waiting_for_delete_reply = State()
+    waiting_for_delete_reminder = State()
+    waiting_for_delete_channel_msg = State()
     waiting_for_clear_user_id = State()
 
 # ----------------- دوال قاعدة البيانات الجديدة (بديل للملف المحلي) -----------------
@@ -77,8 +90,19 @@ def load_data():
     """تحميل البيانات من قاعدة بيانات MongoDB"""
     data_doc = collection.find_one({"_id": "main_bot_config"})
     if data_doc:
+        # إزالة حقل _id قبل إرجاع البيانات
         data_doc.pop("_id", None)
-        return data_doc
+        # التأكد من وجود كل المفاتيح الافتراضية
+        default_data = {
+            "auto_replies": {}, "daily_reminders": [], "channel_messages": [],
+            "banned_users": [], "users": [], "channel_id": "", "allow_media": False,
+            "media_reject_message": "❌ يُسمح بالرسائل النصية فقط. يرجى إرسال النص فقط.",
+            "rejected_media_count": 0, "welcome_message": "", "reply_message": "",
+            "schedule_interval_seconds": 86400
+        }
+        # دمج البيانات المحملة مع الافتراضية لضمان عدم حدوث أخطاء
+        default_data.update(data_doc)
+        return default_data
     else:
         # القالب الافتراضي في حالة عدم وجود بيانات
         return {
@@ -245,12 +269,7 @@ def create_buttons():
 
 # ----------------- التاريخ الهجري -----------------
 def get_hijri_date():
-    """
-    محاولة جلب التاريخ الهجري باستخدام مكتبة hijri-converter
-    في حالة عدم وجود المكتبة، سيتم عرض رسالة بديلة
-    """
     try:
-        # محاولة استيراد المكتبة
         from hijri_converter import convert
         today = datetime.date.today()
         hijri_date = convert.Gregorian(today.year, today.month, today.day).to_hijri()
@@ -278,7 +297,6 @@ def get_hijri_date():
 
         return result
     except ImportError:
-        # في حالة عدم توفر المكتبة
         today = datetime.date.today()
         weekdays = {
             0: "الاثنين", 1: "الثلاثاء", 2: "الأربعاء", 3: "الخميس",
@@ -300,21 +318,13 @@ def get_daily_reminder():
     return random.choice(DAILY_REMINDERS)
 
 def get_live_time():
-    """
-    جلب الوقت الحالي بتوقيت الرياض
-    """
     try:
-        # محاولة استخدام مكتبة pytz للتوقيت
         import pytz
         riyadh_tz = pytz.timezone('Asia/Riyadh')
         now = datetime.datetime.now(riyadh_tz)
     except ImportError:
-        # في حالة عدم توفر مكتبة pytz، استخدم الوقت المحلي
-        import time
-        # تقدير فرق التوقيت (+3 ساعات للرياض)
         now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
     except Exception:
-        # في حالة أي خطأ آخر، استخدم الوقت المحلي للنظام
         now = datetime.datetime.now()
 
     try:
@@ -372,7 +382,7 @@ async def schedule_channel_messages():
 
     while True:
         try:
-            interval_seconds = bot_data.get("schedule_interval_seconds", 86400)  # 24 ساعة افتراضي
+            interval_seconds = bot_data.get("schedule_interval_seconds", 86400)
 
             if interval_seconds < 60:
                 time_display = f"{interval_seconds} ثانية"
@@ -438,26 +448,14 @@ async def process_admin_callback(callback_query: types.CallbackQuery, state: FSM
         )
 
     elif data == "deploy_to_production":
-        await bot.answer_callback_query(callback_query.id, "🚀 جاري التحضير للنشر...")
-
-        deployment_text = f"🚀 **نشر البوت للإنتاج**\n\n"
+        deployment_text = f"🚀 **نشر البوت للإنتاج (Render)**\n\n"
         deployment_text += f"✅ **الحالة الحالية:**\n"
         deployment_text += f"• البوت يعمل: ✅ نشط\n"
-        deployment_text += f"• خادم الويب: ✅ يعمل على المنفذ 5000\n"
-        deployment_text += f"• قاعدة البيانات: ✅ متصلة\n"
-        deployment_text += f"• النشر التلقائي: ✅ مفعل\n\n"
-
-        deployment_text += f"🔧 **للنشر النهائي:**\n"
-        deployment_text += f"1. اضغط على زر 'Deploy' في أعلى Replit\n"
-        deployment_text += f"2. اختر 'Reserved VM Deployment'\n"
-        deployment_text += f"3. اتركه ينشر تلقائياً\n\n"
-
-        deployment_text += f"🌟 **مميزات Reserved VM:**\n"
-        deployment_text += f"• يعمل 24/7 بدون انقطاع\n"
-        deployment_text += f"• مناسب للبوتات طويلة المدى\n"
-        deployment_text += f"• استقرار عالي في الأداء\n"
-        deployment_text += f"• لا يتوقف عند عدم وجود نشاط"
-
+        deployment_text += f"• خادم الويب: ✅ يعمل لإبقاء البوت نشطًا\n"
+        deployment_text += f"• قاعدة البيانات: ✅ سحابية (MongoDB)\n"
+        deployment_text += f"• النشر التلقائي: ✅ مفعل (من GitHub)\n\n"
+        deployment_text += f"🌟 **البوت يعمل على الخطة المجانية لـ Render**"
+        
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton("📊 فحص الحالة", callback_data="check_deployment_status"))
         keyboard.add(InlineKeyboardButton("🔙 العودة للرئيسية", callback_data="back_to_main"))
@@ -476,14 +474,10 @@ async def process_admin_callback(callback_query: types.CallbackQuery, state: FSM
 
         status_text = f"📊 **حالة النشر الحالية**\n\n"
         status_text += f"🕐 **وقت التشغيل:** {uptime:.1f} ساعة\n"
-        status_text += f"🌐 **الخادم:** البوت فقط (بدون خادم ويب)\n"
+        status_text += f"🌐 **الخادم:** نشط (Flask)\n"
         status_text += f"🤖 **البوت:** متصل ويعمل\n"
         status_text += f"📊 **المستخدمين:** {len(USERS_LIST)}\n"
-        status_text += f"💬 **الرسائل:** {len(user_messages)}\n"
-        status_text += f"📅 **آخر فحص:** {current_time.strftime('%H:%M:%S')}\n\n"
-
-        status_text += f"✅ **البوت جاهز للنشر النهائي**\n"
-        status_text += f"استخدم Reserved VM Deployment للعمل المستمر 24/7"
+        status_text += f"📅 **آخر فحص:** {current_time.strftime('%H:%M:%S')}\n"
 
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineKeyboardButton("🔄 تحديث الحالة", callback_data="check_deployment_status"))
@@ -498,6 +492,7 @@ async def process_admin_callback(callback_query: types.CallbackQuery, state: FSM
         )
 
     elif data == "back_to_main":
+        await state.finish() # إنهاء أي حالة نشطة
         await bot.edit_message_text(
             "🔧 **لوحة التحكم الإدارية**\n\n"
             "مرحباً بك في لوحة التحكم الشاملة للبوت 🤖\n"
@@ -1196,7 +1191,7 @@ async def process_new_reply(message: types.Message, state: FSMContext):
         bot_data["auto_replies"] = AUTO_REPLIES
         save_data(bot_data)
         
-        await message.reply(f"✅ تم إضافة الرد التلقائي بنجاح!\n\n📝 الكلمة: `{trigger}`\n💬 الرد: {response}")
+        await message.reply(f"✅ تم إضافة الرد التلقائي بنجاح!\n\n📝 الكلمة: `{trigger}`\n💬 الرد: {response}", parse_mode="Markdown")
         await state.finish()
     except Exception as e:
         await message.reply(f"❌ خطأ في إضافة الرد: {e}")
@@ -1235,7 +1230,7 @@ async def process_ban_user(message: types.Message, state: FSMContext):
         bot_data["banned_users"] = list(BANNED_USERS)
         save_data(bot_data)
         
-        await message.reply(f"✅ تم حظر المستخدم بنجاح!\n\n🚫 المستخدم: `{user_id}`")
+        await message.reply(f"✅ تم حظر المستخدم بنجاح!\n\n🚫 المستخدم: `{user_id}`", parse_mode="Markdown")
         await state.finish()
     except ValueError:
         await message.reply("❌ يجب أن يكون ID رقماً صحيحاً!")
@@ -1250,9 +1245,9 @@ async def process_unban_user(message: types.Message, state: FSMContext):
             BANNED_USERS.remove(user_id)
             bot_data["banned_users"] = list(BANNED_USERS)
             save_data(bot_data)
-            await message.reply(f"✅ تم إلغاء حظر المستخدم بنجاح!\n\n✅ المستخدم: `{user_id}`")
+            await message.reply(f"✅ تم إلغاء حظر المستخدم بنجاح!\n\n✅ المستخدم: `{user_id}`", parse_mode="Markdown")
         else:
-            await message.reply(f"❌ المستخدم `{user_id}` غير محظور أصلاً!")
+            await message.reply(f"❌ المستخدم `{user_id}` غير محظور أصلاً!", parse_mode="Markdown")
         await state.finish()
     except ValueError:
         await message.reply("❌ يجب أن يكون ID رقماً صحيحاً!")
@@ -1288,7 +1283,7 @@ async def process_channel_id(message: types.Message, state: FSMContext):
         bot_data["channel_id"] = channel_id
         save_data(bot_data)
         
-        await message.reply(f"✅ تم تحديث معرف القناة بنجاح!\n\n📢 القناة الجديدة: `{channel_id}`")
+        await message.reply(f"✅ تم تحديث معرف القناة بنجاح!\n\n📢 القناة الجديدة: `{channel_id}`", parse_mode="Markdown")
         await state.finish()
     except Exception as e:
         await message.reply(f"❌ خطأ في تحديث معرف القناة: {e}")
@@ -1356,9 +1351,9 @@ async def process_delete_reply(message: types.Message, state: FSMContext):
             del AUTO_REPLIES[trigger]
             bot_data["auto_replies"] = AUTO_REPLIES
             save_data(bot_data)
-            await message.reply(f"✅ تم حذف الرد التلقائي بنجاح!\n\n🗑️ الكلمة المحذوفة: `{trigger}`")
+            await message.reply(f"✅ تم حذف الرد التلقائي بنجاح!\n\n🗑️ الكلمة المحذوفة: `{trigger}`", parse_mode="Markdown")
         else:
-            await message.reply(f"❌ لم يتم العثور على رد تلقائي للكلمة: `{trigger}`")
+            await message.reply(f"❌ لم يتم العثور على رد تلقائي للكلمة: `{trigger}`", parse_mode="Markdown")
         await state.finish()
     except Exception as e:
         await message.reply(f"❌ خطأ في حذف الرد: {e}")
@@ -1407,7 +1402,7 @@ async def process_clear_user_messages(message: types.Message, state: FSMContext)
         if user_id in silenced_users:
             del silenced_users[user_id]
         
-        await message.reply(f"✅ تم مسح بيانات المستخدم بنجاح!\n\n🗑️ المستخدم: `{user_id}`\n📊 الرسائل الممسوحة: {cleared_count}")
+        await message.reply(f"✅ تم مسح بيانات المستخدم بنجاح!\n\n🗑️ المستخدم: `{user_id}`\n📊 الرسائل الممسوحة: {cleared_count}", parse_mode="Markdown")
         await state.finish()
     except ValueError:
         await message.reply("❌ يجب أن يكون ID رقماً صحيحاً!")
@@ -1571,18 +1566,17 @@ async def startup(dp):
 
         print("✅ البوت جاهز للعمل 24/7!")
         print("🚀 مراقب النشر المستمر مفعل")
-        print("🌐 جاهز للنشر على Reserved VM")
-
+        
         # إرسال رسالة تأكيد للإدارة
         try:
             await bot.send_message(
                 ADMIN_CHAT_ID,
                 "✅ **البوت يعمل بنجاح!**\n\n"
                 "🤖 البوت متصل ونشط\n"
+                "🌐 خادم الويب يعمل\n"
+                "☁️ قاعدة البيانات متصلة\n"
                 "📱 جاهز لاستقبال الرسائل\n"
-                "🚀 مستعد للنشر المستمر 24/7\n"
-                f"⏰ وقت التشغيل: {datetime.datetime.now().strftime('%H:%M:%S')}\n\n"
-                "💡 **للعمل 24/7:** استخدم Reserved VM Deployment",
+                f"⏰ وقت التشغيل: {datetime.datetime.now().strftime('%H:%M:%S')}",
                 parse_mode="Markdown"
             )
         except Exception as e:
@@ -1595,6 +1589,7 @@ async def startup(dp):
 def main():
     # بدء تشغيل خادم الويب في خيط منفصل
     web_server_thread = Thread(target=run_web_server)
+    web_server_thread.daemon = True # للسماح للبرنامج الرئيسي بالإغلاق بشكل صحيح
     web_server_thread.start()
     
     # بدء تشغيل البوت
