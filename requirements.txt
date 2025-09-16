@@ -1,4 +1,3 @@
-Render
 aiogram==2.25.2
 aiohttp<3.9.0
 charset-normalizer<3.0
