@@ -4,21 +4,6 @@ import datetime
 import json
 from aiogram import Bot, Dispatcher, types
 
-# تشغيل خادم Flask
-webserver_started = False
-try:
-    print("🌐 بدء تشغيل خادم Flask...")
-    from webserver import start_webserver
-    if start_webserver():
-        print("✅ تم تشغيل خادم Flask بنجاح")
-        webserver_started = True
-    else:
-        print("⚠️ فشل في تشغيل خادم Flask")
-except ImportError as e:
-    print(f"⚠️ خطأ في استيراد webserver: {e}")
-except Exception as e:
-    print(f"⚠️ خطأ عام في webserver: {e}")
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -479,7 +464,7 @@ async def process_admin_callback(callback_query: types.CallbackQuery, state: FSM
 
         status_text = f"📊 **حالة النشر الحالية**\n\n"
         status_text += f"🕐 **وقت التشغيل:** {uptime:.1f} ساعة\n"
-        status_text += f"🌐 **الخادم:** نشط على المنفذ 5000\n"
+        status_text += f"🌐 **الخادم:** البوت فقط (بدون خادم ويب)\n"
         status_text += f"🤖 **البوت:** متصل ويعمل\n"
         status_text += f"📊 **المستخدمين:** {len(USERS_LIST)}\n"
         status_text += f"💬 **الرسائل:** {len(user_messages)}\n"
@@ -1014,7 +999,6 @@ async def startup(dp):
 
         print("✅ البوت جاهز للعمل 24/7!")
         print("🚀 مراقب النشر المستمر مفعل")
-        print("🔄 خادم الويب يعمل على المنفذ 5000")
         print("🌐 جاهز للنشر على Reserved VM")
 
         # إرسال رسالة تأكيد للإدارة
@@ -1023,7 +1007,6 @@ async def startup(dp):
                 ADMIN_CHAT_ID,
                 "✅ **البوت يعمل بنجاح!**\n\n"
                 "🤖 البوت متصل ونشط\n"
-                "🌐 خادم الويب يعمل\n"
                 "📱 جاهز لاستقبال الرسائل\n"
                 "🚀 مستعد للنشر المستمر 24/7\n"
                 f"⏰ وقت التشغيل: {datetime.datetime.now().strftime('%H:%M:%S')}\n\n"
