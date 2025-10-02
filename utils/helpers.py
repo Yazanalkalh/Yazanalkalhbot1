@@ -8,6 +8,10 @@ import data_store
 from loader import bot
 from config import ADMIN_CHAT_ID
 
+# قاموس جديد لتخزين الروابط بين الرسائل الموجهة والمستخدمين الأصليين
+# هذا يحل مشكلة خصوصية المستخدمين
+forwarded_message_links = {}
+
 # --- دوال إنشاء الأزرار ---
 def create_admin_panel():
     keyboard = InlineKeyboardMarkup(row_width=2)
@@ -54,10 +58,27 @@ def get_daily_reminder():
     return random.choice(data_store.DAILY_REMINDERS) if data_store.DAILY_REMINDERS else "لا توجد تذكيرات متاحة."
 
 async def forward_to_admin(message):
+    """
+    يعيد توجيه رسالة المستخدم للمشرف ويسجل بيانات الربط للرد.
+    هذه النسخة الجديدة تتجاوز مشاكل خصوصية المستخدم.
+    """
     try:
-        user_info = f"📩 رسالة جديدة من: {message.from_user.full_name}\n**ID:** `{message.from_user.id}`"
-        await bot.send_message(ADMIN_CHAT_ID, user_info)
+        # 1. إعادة توجيه الرسالة الأصلية إلى المشرف
         fw_msg = await message.forward(ADMIN_CHAT_ID)
-        data_store.user_threads[fw_msg.forward_from.id] = message.message_id
+
+        # 2. تخزين رابط بين (ID الرسالة الموجهة) و(معلومات المستخدم الأصلي)
+        # هذا يسمح لنا بمعرفة من هو المستخدم عندما يرد المشرف على الرسالة الموجهة
+        forwarded_message_links[fw_msg.message_id] = {
+            "user_id": message.from_user.id,
+            "original_message_id": message.message_id
+        }
+
     except Exception as e:
-        print(f"فشل إعادة توجيه الرسالة: {e}")
+        print(f"فشل إعادة توجيه الرسالة من {message.from_user.id}: {e}")
+        # في حال فشل التوجيه، أرسل رسالة نصية للمشرف كبديل
+        fallback_text = (
+            f"📩 **فشل توجيه رسالة من:** {message.from_user.full_name} (`{message.from_user.id}`)\n\n"
+            f"**محتوى الرسالة:**\n{message.text or '[محتوى غير نصي]'}\n\n"
+            f"⚠️ **تنبيه:** لا يمكنك الرد على هذه الرسالة مباشرة."
+        )
+        await bot.send_message(ADMIN_CHAT_ID, fallback_text)
