@@ -1,63 +1,46 @@
 import asyncio
 import datetime
 import random
-from loader import bot
-from config import ADMIN_CHAT_ID
-from utils.helpers import bot_data, CHANNEL_MESSAGES, start_time
+from loader import bot, dp
+from config import ADMIN_CHAT_ID, CHANNEL_ID
+import data_store
 
 async def send_channel_message(custom_message=None):
-    """يرسل رسالة عشوائية أو مخصصة للقناة المحددة."""
-    channel_id = bot_data.get("channel_id")
-    if not channel_id:
-        print("⚠️ النشر التلقائي متوقف: معرف القناة غير محدد.")
-        return False
-    
-    if not CHANNEL_MESSAGES and not custom_message:
+    channel = data_store.bot_data.get("channel_id") or CHANNEL_ID
+    if not channel:
+        print("⚠️ النشر التلقائي متوقف: لم يتم تحديد قناة.")
+        return
+
+    message_to_send = custom_message or (random.choice(data_store.CHANNEL_MESSAGES) if data_store.CHANNEL_MESSAGES else None)
+    if not message_to_send:
         print("⚠️ النشر التلقائي متوقف: لا توجد رسائل للنشر.")
-        return False
-    
+        return
+
     try:
-        message_to_send = custom_message or random.choice(CHANNEL_MESSAGES)
-        await bot.send_message(chat_id=channel_id, text=message_to_send)
-        print(f"✅ تم إرسال رسالة بنجاح إلى القناة {channel_id}")
-        return True
+        await bot.send_message(channel, message_to_send)
+        print(f"✅ تم إرسال رسالة تلقائية إلى القناة {channel}")
     except Exception as e:
-        print(f"❌ خطأ في إرسال الرسالة للقناة: {e}")
-        return False
+        print(f"❌ فشل إرسال رسالة للقناة {channel}: {e}")
 
-async def schedule_channel_messages():
-    """جدولة الرسائل التلقائية للقناة بناءً على الفترة المحددة."""
-    print("⏳ بدء جدولة الرسائل التلقائية للقناة...")
+async def scheduled_tasks():
     while True:
-        try:
-            interval_seconds = bot_data.get("schedule_interval_seconds", 86400)
-            await asyncio.sleep(interval_seconds)
-            await send_channel_message()
-        except Exception as e:
-            print(f"❌ خطأ فادح في حلقة جدولة الرسائل: {e}")
-            await asyncio.sleep(60)
+        interval = data_store.bot_data.get("schedule_interval_seconds", 86400)
+        await asyncio.sleep(interval)
+        await send_channel_message()
 
-async def startup_tasks(dp):
-    """
-    الدالة التي يتم تشغيلها عند بدء تشغيل البوت.
-    تقوم بإرسال رسالة تأكيد للمشرف وبدء المهام الخلفية.
-    """
+async def startup_tasks(dispatcher):
     try:
         startup_message = (
-            "✅ **البوت يعمل الآن بنجاح**\n\n"
-            "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-            "🤖 **الحالة:** متصل وجاهز\n"
-            "🌐 **خادم الويب:** يعمل\n"
-            "☁️ **قاعدة البيانات:** متصلة\n"
-            "📱 **استقبال الرسائل:** مفعل\n"
-            f"⏰ **وقت البدء:** {start_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            "✅ **تم تشغيل البوت بنجاح!**\n\n"
+            "**الحالة:**\n"
+            "- **البوت:** متصل ونشط\n"
+            "- **قاعدة البيانات:** متصلة\n"
+            "- **الخادم:** يعمل وجاهز\n\n"
+            f"**وقت التشغيل:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        await bot.send_message(ADMIN_CHAT_ID, startup_message, parse_mode="Markdown")
-        
-        asyncio.create_task(schedule_channel_messages())
-        print("✅ البوت جاهز للعمل. تم تفعيل المهام الخلفية.")
-
+        await bot.send_message(ADMIN_CHAT_ID, startup_message)
     except Exception as e:
-        print(f"❌ خطأ في دالة بدء التشغيل (startup): {e}")
-
-
+        print(f"⚠️ لم يتم إرسال رسالة بدء التشغيل للمشرف: {e}")
+    
+    asyncio.create_task(scheduled_tasks())
+    print("🚀 تم جدولة المهام التلقائية بنجاح.")
