@@ -1,4 +1,5 @@
 from aiogram import types, Dispatcher
+from aiogram.dispatcher.filters import Text
 
 from loader import bot
 from config import ADMIN_CHAT_ID
@@ -10,6 +11,7 @@ from utils.helpers import (
 
 # --- معالج أمر /start ---
 async def send_welcome(message: types.Message):
+    """يرسل رسالة ترحيبية للمستخدم عند بدء المحادثة."""
     if is_banned(message.from_user.id):
         return
 
@@ -30,17 +32,21 @@ async def send_welcome(message: types.Message):
 
 # --- معالج الرسائل النصية من المستخدم ---
 async def handle_user_message(message: types.Message):
+    """يعالج الرسائل النصية العادية من المستخدمين."""
     if is_banned(message.from_user.id):
         return
 
     user_message = message.text.strip()
 
+    # 1. البحث عن رد تلقائي
     if user_message in AUTO_REPLIES:
         await message.reply(AUTO_REPLIES[user_message], reply_markup=create_user_buttons())
         return
 
+    # 2. إذا لم يوجد رد، أرسل للمشرف
     await handle_user_content(message)
 
+    # 3. أرسل رسالة تأكيد للمستخدم
     reply_text = bot_data.get("reply_message") or (
         "✅ **تم استلام رسالتك بنجاح!**\n\n"
         "شكراً لتواصلك معنا. سيقوم الفريق بمراجعة رسالتك والرد عليك في أقرب فرصة ممكنة. 🌙"
@@ -49,6 +55,7 @@ async def handle_user_message(message: types.Message):
 
 # --- معالج الوسائط من المستخدم ---
 async def handle_media_message(message: types.Message):
+    """يعالج جميع أنواع الوسائط (صور، فيديوهات، الخ) من المستخدمين."""
     if is_banned(message.from_user.id):
         return
     
@@ -63,6 +70,7 @@ async def handle_media_message(message: types.Message):
 
 # --- معالج أزرار المستخدم ---
 async def process_user_callback(call: types.CallbackQuery):
+    """يعالج الضغط على الأزرار من قبل المستخدم."""
     if is_banned(call.from_user.id):
         await call.answer("❌ أنت محظور من استخدام البوت.", show_alert=True)
         return
@@ -81,12 +89,12 @@ async def process_user_callback(call: types.CallbackQuery):
         response_text = "👨‍💻 **تم تطوير هذا البوت بواسطة:**\n[فريق التقويم الهجري](https://t.me/HejriCalender)\n\nلخدمتكم والإجابة على استفساراتكم. ✨"
     
     if response_text:
-        await call.message.answer(response_text, disable_web_page_preview=True)
+        await call.message.answer(response_text, disable_web_page_preview=True, parse_mode="Markdown")
 
 # --- دالة تسجيل المعالجات ---
 def register_user_handlers(dp: Dispatcher):
+    """تسجل جميع معالجات المستخدم في المرسل."""
     dp.register_message_handler(send_welcome, commands=['start'], state="*")
-    # تم تغيير الترتيب لضمان التقاط الرسائل النصية أولاً
     dp.register_message_handler(handle_user_message, lambda msg: msg.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.TEXT, state="*")
     dp.register_message_handler(handle_media_message, lambda msg: msg.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.ANY, state="*")
     dp.register_callback_query_handler(process_user_callback, lambda call: call.from_user.id != ADMIN_CHAT_ID, state="*")
