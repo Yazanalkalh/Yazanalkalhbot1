@@ -2,6 +2,7 @@ import datetime
 import random
 import pytz
 from hijri_converter import convert
+from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from database import load_data, save_data
@@ -60,6 +61,18 @@ def create_user_buttons():
 def is_banned(user_id):
     return user_id in BANNED_USERS
 
+def ban_user(user_id):
+    """إضافة مستخدم لقائمة الحظر وحفظها"""
+    BANNED_USERS.add(user_id)
+    bot_data["banned_users"] = list(BANNED_USERS)
+    save_data(bot_data)
+
+def unban_user(user_id):
+    """إزالة مستخدم من قائمة الحظر وحفظها"""
+    BANNED_USERS.discard(user_id)
+    bot_data["banned_users"] = list(BANNED_USERS)
+    save_data(bot_data)
+
 def get_hijri_date():
     try:
         today = datetime.date.today()
@@ -111,9 +124,15 @@ async def handle_user_content(message: types.Message):
     تعيد توجيه رسالة المستخدم إلى المشرف وتسجل بيانات المحادثة.
     """
     user_id = message.from_user.id
+
+    # التحقق من نوع الرسالة (يدعم النصوص فقط)
+    if message.content_type != "text":
+        await message.reply("🚫 البوت يدعم النصوص فقط.")
+        return
+
     try:
         forwarded_message = await message.forward(ADMIN_CHAT_ID)
         # تسجيل بيانات المحادثة للرد عليها لاحقاً
-        user_threads[user_id] = message.message_id
+        user_threads[user_id] = forwarded_message.message_id
     except Exception as e:
         print(f"فشل إعادة توجيه الرسالة من {user_id}: {e}")
