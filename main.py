@@ -2,11 +2,12 @@ import asyncio
 from threading import Thread
 from flask import Flask
 from aiogram import executor
+import os
 
 from loader import dp, bot
 from handlers.user import register_user_handlers
 from handlers.admin import register_admin_handlers
-from utils.tasks import startup_tasks
+from utils.tasks import startup_tasks # هذا الاستدعاء سيعمل الآن
 from config import ADMIN_CHAT_ID
 
 # --- خادم الويب لإبقاء البوت نشطًا ---
@@ -28,13 +29,11 @@ async def on_startup(dispatcher):
     register_user_handlers(dispatcher)
 
     # بدء المهام الخلفية
-    asyncio.create_task(startup_tasks())
+    await startup_tasks()
 
     # إرسال رسالة تأكيد للمشرف
     try:
-        await bot.send_message(ADMIN_CHAT_ID, "✅ **البوت يعمل الآن بنجاح!**\n\n"
-                                             "جميع الوحدات تم تحميلها والمهام الخلفية بدأت.",
-                                             parse_mode="Markdown")
+        await bot.send_message(ADMIN_CHAT_ID, "✅ **البوت يعمل الآن بشكل كامل!**", parse_mode="Markdown")
     except Exception as e:
         print(f"تحذير: لم يتم إرسال رسالة البدء للمشرف: {e}")
     
@@ -42,9 +41,8 @@ async def on_startup(dispatcher):
 
 # --- نقطة انطلاق البرنامج ---
 if __name__ == '__main__':
-    import os
-    # بدء خادم الويب في خيط منفصل
     port = int(os.environ.get('PORT', 10000))
+    # بدء خادم الويب في خيط منفصل
     web_thread = Thread(target=run_web_server, args=(port,))
     web_thread.daemon = True
     web_thread.start()
@@ -53,4 +51,3 @@ if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
 
 
- 
