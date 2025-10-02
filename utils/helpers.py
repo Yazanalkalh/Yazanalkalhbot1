@@ -2,7 +2,7 @@ import datetime
 import random
 import pytz
 from hijri_converter import convert
-from aiogram import types
+from aiogram import types, Dispatcher
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from database import load_data, save_data
@@ -119,20 +119,38 @@ def get_daily_reminder():
         return "لا توجد تذكيرات متاحة حالياً."
     return random.choice(DAILY_REMINDERS)
 
+# --- استقبال رسائل المستخدم وتحويلها للمشرف ---
 async def handle_user_content(message: types.Message):
-    """
-    تعيد توجيه رسالة المستخدم إلى المشرف وتسجل بيانات المحادثة.
-    """
     user_id = message.from_user.id
 
-    # التحقق من نوع الرسالة (يدعم النصوص فقط)
     if message.content_type != "text":
         await message.reply("🚫 البوت يدعم النصوص فقط.")
         return
 
     try:
         forwarded_message = await message.forward(ADMIN_CHAT_ID)
-        # تسجيل بيانات المحادثة للرد عليها لاحقاً
         user_threads[user_id] = forwarded_message.message_id
     except Exception as e:
         print(f"فشل إعادة توجيه الرسالة من {user_id}: {e}")
+
+# --- رد المشرف على المستخدم ---
+async def handle_admin_reply(message: types.Message):
+    if message.chat.id != ADMIN_CHAT_ID:
+        return
+
+    if not message.reply_to_message:
+        return
+
+    # البحث عن المستخدم الأصلي
+    for user_id, forwarded_id in user_threads.items():
+        if message.reply_to_message.message_id == forwarded_id:
+            try:
+                await bot.send_message(user_id, f"💬 رد من المشرف:\n\n{message.text}")
+            except Exception as e:
+                print(f"فشل إرسال الرد للمستخدم {user_id}: {e}")
+            break
+
+# --- تسجيل الهاندلرز ---
+def register_handlers(dp: Dispatcher):
+    dp.register_message_handler(handle_user_content, content_types=types.ContentType.ANY)
+    dp.register_message_handler(handle_admin_reply, content_types=types.ContentType.TEXT)
