@@ -113,8 +113,16 @@ async def handle_user_content(message: types.Message):
     """
     user_id = message.from_user.id
     try:
+        # إرسال معلومات المستخدم كنص أولاً
+        user_info = f"📩 رسالة جديدة من المستخدم: {message.from_user.full_name}\nID: `{message.from_user.id}`"
+        await bot.send_message(ADMIN_CHAT_ID, user_info, parse_mode="Markdown")
+        
+        # ثم إعادة توجيه الرسالة الأصلية
         forwarded_message = await message.forward(ADMIN_CHAT_ID)
+        
         # تسجيل بيانات المحادثة للرد عليها لاحقاً
         user_threads[user_id] = message.message_id
     except Exception as e:
         print(f"فشل إعادة توجيه الرسالة من {user_id}: {e}")
+
+
