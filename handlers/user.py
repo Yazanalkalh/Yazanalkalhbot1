@@ -1,4 +1,4 @@
-from aiogram import types, Dispatcher # <-- تم التصحيح هنا
+from aiogram import types, Dispatcher
 
 # استيراد المكونات اللازمة من الملفات الأخرى
 from loader import bot
@@ -23,36 +23,45 @@ async def send_welcome(message: types.Message):
                      "هذا البوت مخصص لملاحظاتك واستفساراتك.\n"
                      "تفضّل بطرح سؤالك وسيتم الرد عليك. ✨"))
     
-    await message.reply(welcome_text.format(name=user_name), reply_markup=create_buttons(), parse_mode="Markdown")
+    # استبدال {name} باسم المستخدم الفعلي
+    final_text = welcome_text.replace("{name}", user_name)
+    await message.reply(final_text, reply_markup=create_buttons(), parse_mode="Markdown")
 
 async def handle_user_message(message: types.Message):
-    """يعالج الرسائل النصية من المستخدمين."""
+    """
+    يعالج الرسائل النصية من المستخدمين بالمنطق الصحيح.
+    1. يفحص الردود التلقائية.
+    2. إذا لم يجد، يرسل للمشرف ثم يرد على المستخدم.
+    """
     if is_banned(message.from_user.id): return
 
     user_id = message.from_user.id
     first_name = message.from_user.first_name or ""
     
+    # التحقق من نظام منع الرسائل المزعجة
     spam_allowed, spam_status = check_spam_limit(user_id)
     if not spam_allowed:
         await message.reply(get_spam_warning_message(spam_status, first_name))
         return
 
-    # فحص الردود التلقائية
-    if message.text in AUTO_REPLIES:
-        await message.reply(AUTO_REPLIES[message.text], reply_markup=create_buttons())
-        return
+    # -- المنطق الصحيح الذي طلبته --
+    # الخطوة 1: فحص الردود التلقائية أولاً
+    if message.text.strip() in AUTO_REPLIES:
+        await message.reply(AUTO_REPLIES[message.text.strip()], reply_markup=create_buttons())
+        return # يتوقف هنا إذا وجد رداً تلقائياً
 
-    # إرسال المحتوى للمشرف
+    # الخطوة 2: إذا لم يكن هناك رد تلقائي، أرسل المحتوى للمشرف
     await handle_user_content(message, message.text)
 
-    # إرسال رسالة تأكيد للمستخدم
+    # الخطوة 3: أرسل رسالة تأكيد للمستخدم
     reply_text = bot_data.get("reply_message") or "✅ تم استلام رسالتك بنجاح، شكراً لتواصلك."
     await message.reply(reply_text, reply_markup=create_buttons())
 
 async def handle_media_message(message: types.Message):
-    """يعالج رسائل الوسائط (صور، فيديوهات، الخ)."""
+    """يعالج رسائل الوسائط (صور، فيديوهات، الخ) ويمنعها إذا لزم الأمر."""
     if is_banned(message.from_user.id): return
 
+    # إذا كانت الوسائط غير مسموحة، امنعها
     if not bot_data.get("allow_media", False):
         reject_message = bot_data.get("media_reject_message", "❌ عذراً، يُسمح بالرسائل النصية فقط.")
         await message.reply(reject_message)
@@ -60,7 +69,10 @@ async def handle_media_message(message: types.Message):
         save_data(bot_data)
         return
     
+    # إذا كانت مسموحة، أرسلها للمشرف
     await handle_user_content(message, f"[{message.content_type}]")
+    await message.reply("✅ تم استلام الوسائط بنجاح.", reply_markup=create_buttons())
+
 
 async def process_user_callback(callback_query: types.CallbackQuery):
     """يعالج ضغطات الأزرار من المستخدمين."""
@@ -84,11 +96,23 @@ async def process_user_callback(callback_query: types.CallbackQuery):
 
 # --- تسجيل المعالجات ---
 
-def register_user_handlers(dp: Dispatcher): # <-- تم التصحيح هنا
-    """يسجل جميع المعالجات الخاصة بالمستخدم."""
+def register_user_handlers(dp: Dispatcher):
+    """
+    يسجل جميع المعالجات الخاصة بالمستخدم بالترتيب الصحيح.
+    """
     dp.register_message_handler(send_welcome, commands=['start'], state="*")
     dp.register_callback_query_handler(process_user_callback, lambda q: q.from_user.id != ADMIN_CHAT_ID, state="*")
-    dp.register_message_handler(handle_media_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.ANY, state="*")
+    
+    # ** هذا هو التصحيح الأهم **
+    # نسجل معالج الوسائط أولاً، ونحدد الأنواع بدقة (كل شيء ما عدا النص)
+    media_types = [
+        types.ContentType.PHOTO, types.ContentType.VIDEO, types.ContentType.DOCUMENT,
+        types.ContentType.AUDIO, types.ContentType.VOICE, types.ContentType.VIDEO_NOTE,
+        types.ContentType.STICKER, types.ContentType.ANIMATION
+    ]
+    dp.register_message_handler(handle_media_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=media_types, state="*")
+
+    # نسجل معالج النص أخيراً، ليعالج الرسائل النصية فقط
     dp.register_message_handler(handle_user_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.TEXT, state="*")
 
 
