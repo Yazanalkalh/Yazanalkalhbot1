@@ -2,33 +2,27 @@ import datetime
 import random
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import load_data, save_data
-import config  # استيراد ملف الإعدادات للوصول للمتغيرات
+import config
 
 # --- تحميل البيانات والمتغيرات العامة ---
 bot_data = load_data()
 
-# هذه القوائم سيتم تحديثها تلقائياً من البيانات المحملة
 USERS_LIST = set(bot_data.get("users", []))
 AUTO_REPLIES = bot_data.get("auto_replies", {})
 DAILY_REMINDERS = bot_data.get("daily_reminders", [])
 CHANNEL_MESSAGES = bot_data.get("channel_messages", [])
 BANNED_USERS = set(bot_data.get("banned_users", []))
 
-# متغيرات للذاكرة المؤقتة (Anti-Spam والمحادثات)
-user_messages = {}
-user_threads = {}
+# متغيرات للذاكرة المؤقتة
 user_message_count = {}
 silenced_users = {}
 start_time = datetime.datetime.now()
 
 # --- دوال مساعدة أساسية ---
-
 def is_banned(user_id):
-    """التحقق مما إذا كان المستخدم محظوراً."""
     return user_id in BANNED_USERS
 
 def check_spam_limit(user_id):
-    """التحقق من تجاوز حد الرسائل المزعجة."""
     current_time = datetime.datetime.now()
     if user_id in silenced_users and (current_time - silenced_users[user_id]).total_seconds() < 30:
         return False, "silenced"
@@ -47,51 +41,33 @@ def check_spam_limit(user_id):
     return True, "allowed"
 
 def get_spam_warning_message(status, user_name=""):
-    """إنشاء رسالة تحذير للمستخدم المزعج."""
     if status == "limit_exceeded":
-        return f"⚠️ عذراً {user_name}، لقد تجاوزت حد الرسائل المسموح. تم إيقافك مؤقتاً لمدة 30 ثانية."
+        return f"⚠️ عذراً {user_name}، لقد تجاوزت حد الرسائل. تم إيقافك مؤقتاً لمدة 30 ثانية."
     elif status == "silenced":
         return "🔇 أنت موقوف مؤقتاً. يرجى الانتظار قليلاً."
     return ""
 
-async def handle_user_content(message, content_text=""):
+async def handle_user_content(message):
     """
     الدالة المركزية لإعادة توجيه رسائل المستخدمين للمشرف.
-    -- تم التحديث هنا لحل مشكلة إعادة التوجيه --
+    -- نسخة محسنة: تقوم فقط بإعادة توجيه الرسالة --
     """
     user_id = message.from_user.id
-    username = message.from_user.username or "غير معروف"
-    first_name = message.from_user.first_name or "غير معروف"
-
     # إضافة المستخدم الجديد إذا لم يكن موجوداً
     if user_id not in USERS_LIST:
         USERS_LIST.add(user_id)
         bot_data["users"] = list(USERS_LIST)
         save_data(bot_data)
 
-    # 1. إرسال رسالة إشعار للمشرف (اختياري لكن مفيد)
-    admin_text = f"📩 رسالة جديدة من: {first_name} (@{username})\nID: `{user_id}`"
     try:
-        admin_msg = await config.bot.send_message(chat_id=config.ADMIN_CHAT_ID, text=admin_text, parse_mode="Markdown")
-        
-        # 2. **إعادة توجيه الرسالة الأصلية بالكامل للمشرف**
-        # هذا هو التصحيح الرئيسي لمشكلة (text)
-        forwarded_msg = await message.forward(config.ADMIN_CHAT_ID)
-
-        # حفظ معلومات الرسالة للرد عليها لاحقاً
-        # سنستخدم ID الرسالة المعاد توجيهها
-        user_messages[forwarded_msg.message_id] = {
-            "user_id": user_id,
-            "user_message_id": message.message_id,
-            "user_text": content_text
-        }
+        # **إعادة توجيه الرسالة الأصلية بالكامل للمشرف**
+        # هذا هو التصحيح الرئيسي.
+        await message.forward(config.ADMIN_CHAT_ID)
     except Exception as e:
-        print(f"❌ خطأ في إرسال رسالة للمشرف: {e}")
+        print(f"❌ خطأ في إعادة توجيه الرسالة للمشرف: {e}")
 
 # --- دوال إنشاء الأزرار ---
-
 def create_admin_panel():
-    """إنشاء لوحة التحكم الرئيسية للمشرف."""
     keyboard = InlineKeyboardMarkup(row_width=2)
     buttons = [
         ("📝 إدارة الردود", "admin_replies"), ("💭 إدارة التذكيرات", "admin_reminders"),
@@ -105,7 +81,6 @@ def create_admin_panel():
     return keyboard
 
 def create_buttons():
-    """إنشاء الأزرار الرئيسية للمستخدم."""
     keyboard = InlineKeyboardMarkup(row_width=2)
     buttons = [
         ("اليوم هجري", "hijri_today"), ("🕐 الساعة والتاريخ", "live_time"),
@@ -115,10 +90,7 @@ def create_buttons():
     return keyboard
 
 # --- دوال جلب المعلومات ---
-
 def get_hijri_date():
-    """جلب التاريخ الهجري والميلادي."""
-    # (الكود لم يتغير)
     try:
         from hijri_converter import convert
         today = datetime.date.today()
@@ -134,8 +106,6 @@ def get_hijri_date():
         return "عذراً، حدث خطأ في جلب التاريخ الهجري."
 
 def get_live_time():
-    """جلب الوقت والتاريخ الحالي."""
-    # (الكود لم يتغير)
     try:
         import pytz
         now = datetime.datetime.now(pytz.timezone('Asia/Riyadh'))
@@ -148,8 +118,6 @@ def get_live_time():
         return "عذراً، حدث خطأ في جلب الوقت."
 
 def get_daily_reminder():
-    """الحصول على تذكير يومي عشوائي."""
     return random.choice(DAILY_REMINDERS) if DAILY_REMINDERS else "لا توجد تذكيرات متاحة حالياً."
 
 
- 
