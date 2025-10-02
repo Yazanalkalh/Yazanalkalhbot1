@@ -1,6 +1,9 @@
 from aiogram import types, Dispatcher
 from data_store import bot_data, USERS_LIST, AUTO_REPLIES, save_all_data
-from utils.helpers import is_banned, create_user_buttons, get_hijri_date, get_live_time, get_daily_reminder, forward_to_admin
+from utils.helpers import (
+    is_banned, create_user_buttons, get_hijri_date,
+    get_live_time, get_daily_reminder, forward_to_admin
+)
 from config import ADMIN_CHAT_ID
 
 async def send_welcome(message: types.Message):
@@ -16,7 +19,7 @@ async def send_welcome(message: types.Message):
 
 async def handle_user_message(message: types.Message):
     if is_banned(message.from_user.id): return
-    if message.text in AUTO_REPLIES:
+    if message.text and message.text in AUTO_REPLIES:
         await message.reply(AUTO_REPLIES[message.text], reply_markup=create_user_buttons())
         return
 
@@ -39,12 +42,14 @@ async def process_callback(call: types.CallbackQuery):
         return
     
     await call.answer()
+
+    # تم تحديث هذه القائمة لحذف "from_developer"
     responses = {
         "hijri_today": get_hijri_date(),
         "live_time": get_live_time(),
-        "daily_reminder": get_daily_reminder(),
-        "from_developer": "👨‍💻 **تم تطوير هذا البوت بواسطة:** [فريق التقويم الهجري](https://t.me/HejriCalender)"
+        "daily_reminder": get_daily_reminder()
     }
+
     if call.data in responses:
         await call.message.answer(responses[call.data], disable_web_page_preview=True)
 
