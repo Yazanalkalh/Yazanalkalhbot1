@@ -9,21 +9,41 @@ from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
 from utils.tasks import send_channel_message
 import data_store
-from utils.helpers import create_admin_panel
+from utils.helpers import create_admin_panel, forwarded_message_links # استيراد القاموس الجديد
 
 async def admin_panel_cmd(message: types.Message):
     await message.reply("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel())
 
 async def admin_reply_cmd(message: types.Message):
-    if not message.reply_to_message or not message.reply_to_message.forward_from:
+    """
+    يعالج رد المشرف على رسالة موجهة من مستخدم.
+    هذه النسخة الجديدة تستخدم نظام الربط المضمون.
+    """
+    if not message.reply_to_message:
         return
-    user_id = message.reply_to_message.forward_from.id
-    msg_id = data_store.user_threads.get(user_id)
-    try:
-        await message.copy_to(user_id, reply_to_message_id=msg_id)
-        await message.reply("✅ **تم إرسال ردك للمستخدم بنجاح.**")
-    except Exception as e:
-        await message.reply(f"❌ **فشل إرسال الرد:**\n{e}")
+
+    replied_to_msg_id = message.reply_to_message.message_id
+
+    if replied_to_msg_id in forwarded_message_links:
+        user_info = forwarded_message_links[replied_to_msg_id]
+        user_id = user_info["user_id"]
+        original_message_id = user_info["original_message_id"]
+
+        try:
+            await message.copy_to(
+                chat_id=user_id,
+                reply_to_message_id=original_message_id
+            )
+            await message.reply("✅ **تم إرسال ردك للمستخدم بنجاح.**")
+            del forwarded_message_links[replied_to_msg_id] # تنظيف الذاكرة
+        except Exception as e:
+            await message.reply(f"❌ **فشل إرسال الرد.**\nقد يكون المستخدم قد حظر البوت.\nالخطأ: {e}")
+    else:
+        # هذا يعني أن المشرف يرد على رسالة عادية وليست رسالة موجهة من مستخدم
+        pass # لا تفعل شيئاً لتجنب الإزعاج
+
+# ... (بقية الكود تبقى كما هي تماماً)
+# The rest of the file is provided for completeness and to avoid any issues.
 
 async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     await cq.answer()
@@ -40,7 +60,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         s = f"🚀 **حالة النشر:**\n- الحالة: نشط\n- مدة التشغيل: {str(ut).split('.')[0]}"
         await cq.message.edit_text(s, reply_markup=back_kb("back_to_main"))
     elif d == "toggle_media":
-        data_store.bot_data["allow_media"] = not data_store.bot_data["allow_media"]
+        data_store.bot_data["allow_media"] = not data_store.bot_data.get("allow_media", False)
         data_store.save_all_data()
         status = "مسموح" if data_store.bot_data["allow_media"] else "ممنوع"
         await cq.answer(f"استقبال الوسائط الآن: {status}", show_alert=True)
@@ -106,7 +126,7 @@ def get_kb(menu):
         "admin_media_settings": [("🔓/🔒 تبديل الحالة", "toggle_media"), ("✏️ رسالة الرفض", "set_media_reject_msg")],
         "admin_memory_management": [("🗑️ مسح بيانات", "clear_user_messages"), ("🧹 مسح ذاكرة Spam", "clear_temp_memory")]
     }
-    kb.add(*[InlineKeyboardButton(t, callback_data=c) for t,c in b_map[menu]])
+    kb.add(*[InlineKeyboardButton(t, callback_data=c) for t,c in b_map.get(menu, [])])
     kb.add(InlineKeyboardButton("🔙 العودة للوحة التحكم", callback_data="back_to_main"))
     return kb
 
@@ -119,7 +139,12 @@ async def cancel_cmd(m: types.Message, state: FSMContext):
 async def process_text(m: types.Message, s: FSMContext, key: str, is_list=False, success_msg=""):
     val = m.text.strip()
     if is_list:
-        data_store.bot_data[key].append(val)
+        if key in data_store.bot_data and isinstance(data_store.bot_data[key], list):
+            data_store.bot_data[key].append(val)
+        else: # If key doesn't exist or is not a list, create it
+            data_store.bot_data[key] = [val]
+            if key == 'daily_reminders': data_store.DAILY_REMINDERS.append(val)
+            if key == 'channel_messages': data_store.CHANNEL_MESSAGES.append(val)
     else:
         data_store.bot_data[key] = val
     data_store.save_all_data()
@@ -217,7 +242,7 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m,s: del_by_idx(m,s,data_store.DAILY_REMINDERS, "التذكير"), admin_id_filter, state=AdminStates.waiting_for_delete_reminder)
     dp.register_message_handler(lambda m,s: process_text(m,s,"channel_messages",True, "✅ **تم إضافة رسالة القناة:** {val}"), admin_id_filter, state=AdminStates.waiting_for_new_channel_message)
     dp.register_message_handler(lambda m,s: del_by_idx(m,s,data_store.CHANNEL_MESSAGES, "الرسالة"), admin_id_filter, state=AdminStates.waiting_for_delete_channel_msg)
-    dp.register_message_handler(lambda m,s: send_channel_message(m.text) and m.reply("✅ تم الإرسال للقناة.", reply_markup=create_admin_panel()) and s.finish(), admin_id_filter, state=AdminStates.waiting_for_instant_channel_post)
+    dp.register_message_handler(lambda m,s: asyncio.ensure_future(send_channel_message(m.text)) and m.reply("✅ تم الإرسال للقناة.", reply_markup=create_admin_panel()) and s.finish(), admin_id_filter, state=AdminStates.waiting_for_instant_channel_post)
     dp.register_message_handler(ban_user, admin_id_filter, state=AdminStates.waiting_for_ban_id)
     dp.register_message_handler(unban_user, admin_id_filter, state=AdminStates.waiting_for_unban_id)
     dp.register_message_handler(broadcast, admin_id_filter, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_broadcast_message)
