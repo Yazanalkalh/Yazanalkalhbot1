@@ -2,52 +2,49 @@ import asyncio
 from threading import Thread
 from flask import Flask
 from aiogram import executor
-import os
 
+# استيراد المكونات الأساسية للبوت
 from loader import dp, bot
-from handlers.user import register_user_handlers
-from handlers.admin import register_admin_handlers
-from utils.tasks import startup_tasks # هذا الاستدعاء سيعمل الآن
-from config import ADMIN_CHAT_ID
+from utils.tasks import startup_tasks
+from handlers import admin, user
 
-# --- خادم الويب لإبقاء البوت نشطًا ---
+# --- إعداد خادم الويب (للتشغيل على Render) ---
 app = Flask(__name__)
+
 @app.route('/')
 def home():
-    return "Bot server is running!"
+    """صفحة بسيطة لتأكيد أن الخادم يعمل."""
+    return "Bot server is running smoothly!"
 
-def run_web_server(port):
+def run_web_server():
+    """تشغيل خادم الويب في الخلفية."""
+    # Render يحدد المنفذ تلقائيًا، 10000 هو خيار احتياطي
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
 
 # --- دالة بدء التشغيل ---
 async def on_startup(dispatcher):
     """
-    تنفذ عند بدء تشغيل البوت.
+    يتم تنفيذ هذه الدالة عند بدء تشغيل البوت.
+    تقوم بتسجيل المعالجات وبدء المهام الخلفية.
     """
-    # تسجيل جميع معالجات الرسائل والأوامر
-    register_admin_handlers(dispatcher)
-    register_user_handlers(dispatcher)
+    # تسجيل معالجات المشرف والمستخدم
+    admin.register_admin_handlers(dispatcher)
+    user.register_user_handlers(dispatcher)
 
-    # بدء المهام الخلفية
-    await startup_tasks()
+    # --- **هذا هو السطر الذي تم تصحيحه** ---
+    # الآن نقوم بتمرير 'dispatcher' (المعروف بـ dp) إلى دالة بدء المهام
+    await startup_tasks(dispatcher)
 
-    # إرسال رسالة تأكيد للمشرف
-    try:
-        await bot.send_message(ADMIN_CHAT_ID, "✅ **البوت يعمل الآن بشكل كامل!**", parse_mode="Markdown")
-    except Exception as e:
-        print(f"تحذير: لم يتم إرسال رسالة البدء للمشرف: {e}")
-    
-    print("🤖 Bot is up and running!")
-
-# --- نقطة انطلاق البرنامج ---
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    # بدء خادم الويب في خيط منفصل
-    web_thread = Thread(target=run_web_server, args=(port,))
+# --- نقطة انطلاق البرنامج الرئيسية ---
+if __name__ == "__main__":
+    # بدء تشغيل خادم الويب في خيط منفصل ليبقى البوت نشطًا
+    web_thread = Thread(target=run_web_server)
     web_thread.daemon = True
     web_thread.start()
     
-    # بدء البوت
+    # بدء تشغيل البوت باستخدام Polling
+    print("🤖 The bot is starting...")
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
 
 
