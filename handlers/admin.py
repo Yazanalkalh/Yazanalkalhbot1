@@ -1,12 +1,12 @@
 import asyncio
-from aiogram import types
+from aiogram import types, Dispatcher  # <-- تم التصحيح هنا
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # استيراد المكونات اللازمة من الملفات الأخرى
 from loader import bot
 from states.admin_states import AdminStates
-from config import ADMIN_CHAT_ID, CHANNEL_ID
+from config import ADMIN_CHAT_ID
 from utils.helpers import *
 from utils.tasks import send_channel_message
 
@@ -24,6 +24,7 @@ async def admin_panel(message: types.Message):
 
 async def handle_admin_reply(message: types.Message):
     """يعالج ردود المشرف النصية على رسائل المستخدمين."""
+    if not message.reply_to_message: return
     replied_to_message_id = message.reply_to_message.message_id
     admin_reply_text = message.text.strip()
 
@@ -43,7 +44,8 @@ async def handle_admin_reply(message: types.Message):
         except Exception as e:
             await message.reply(f"❌ خطأ في إرسال الرد: {e}")
     else:
-        await message.reply("❌ لم يتم العثور على الرسالة الأصلية. تأكد من أنك ترد على رسالة مستخدم.")
+        # This part can be removed if admins only reply to forwarded messages
+        pass
 
 # --- المعالج الرئيسي لجميع أزرار لوحة التحكم ---
 
@@ -145,14 +147,11 @@ async def process_admin_callback(callback_query: types.CallbackQuery, state: FSM
         await bot.answer_callback_query(callback_query.id, "✅ تم مسح ذاكرة Spam المؤقتة", show_alert=True)
 
 # --- معالجات الحالات (FSM Handlers) ---
-
 async def cancel_handler(message: types.Message, state: FSMContext):
     """ يلغي أي عملية إدارية نشطة """
     await state.finish()
     await message.reply("✅ تم إلغاء العملية.", reply_markup=types.ReplyKeyboardRemove())
     await admin_panel(message)
-
-# (هنا يتم وضع جميع دوال معالجة الحالات مع إضافة أزرار الإجراء السريع)
 
 async def process_new_reply(message: types.Message, state: FSMContext):
     try:
@@ -271,7 +270,6 @@ async def process_media_reject_message(message: types.Message, state: FSMContext
 async def process_clear_user_id(message: types.Message, state: FSMContext):
     try:
         user_id = int(message.text.strip())
-        # (This logic is complex and best kept simple for now)
         if user_id in user_threads: del user_threads[user_id]
         if user_id in user_message_count: del user_message_count[user_id]
         await message.reply(f"✅ تم مسح البيانات المؤقتة للمستخدم `{user_id}`.")
@@ -288,11 +286,11 @@ async def process_instant_channel_post(message: types.Message, state: FSMContext
 
 # --- تسجيل المعالجات ---
 
-def register_admin_handlers(dp: types.Dispatcher):
+def register_admin_handlers(dp: Dispatcher): # <-- تم التصحيح هنا
     """يسجل جميع المعالجات الخاصة بالمشرف."""
     dp.register_message_handler(admin_panel, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.text == "/admin", state="*")
     dp.register_message_handler(handle_admin_reply, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.reply_to_message, content_types=types.ContentTypes.TEXT, state="*")
-    dp.register_message_handler(cancel_handler, text="/cancel", state="*")
+    dp.register_message_handler(cancel_handler, commands=['cancel'], state="*")
     dp.register_callback_query_handler(process_admin_callback, lambda q: q.from_user.id == ADMIN_CHAT_ID, state="*")
 
     # تسجيل جميع حالات FSM
@@ -314,4 +312,3 @@ def register_admin_handlers(dp: types.Dispatcher):
     dp.register_message_handler(process_instant_channel_post, state=AdminStates.waiting_for_instant_channel_post)
 
 
- 
