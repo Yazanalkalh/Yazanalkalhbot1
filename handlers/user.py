@@ -1,9 +1,7 @@
 from aiogram import types, Dispatcher
 from data_store import bot_data, USERS_LIST, AUTO_REPLIES, save_all_data
-from utils.helpers import (
-    is_banned, create_user_buttons, get_hijri_date,
-    get_live_time, get_daily_reminder, forward_to_admin
-)
+from utils.helpers import is_banned, get_hijri_date, get_live_time, get_daily_reminder, forward_to_admin
+from keyboards.inline import create_user_buttons # استدعاء الأزرار من الملف الجديد
 from config import ADMIN_CHAT_ID
 
 async def send_welcome(message: types.Message):
@@ -42,8 +40,6 @@ async def process_callback(call: types.CallbackQuery):
         return
     
     await call.answer()
-
-    # تم تحديث هذه القائمة لحذف "from_developer"
     responses = {
         "hijri_today": get_hijri_date(),
         "live_time": get_live_time(),
@@ -51,7 +47,7 @@ async def process_callback(call: types.CallbackQuery):
     }
 
     if call.data in responses:
-        await call.message.answer(responses[call.data], disable_web_page_preview=True)
+        await call.message.answer(responses[call.data], parse_mode="Markdown", disable_web_page_preview=True)
 
 def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(send_welcome, commands=['start'], state="*")
