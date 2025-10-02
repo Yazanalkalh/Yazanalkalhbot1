@@ -1,76 +1,78 @@
 from aiogram import Dispatcher, types
+from aiogram.dispatcher import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import asyncio
+
 from loader import bot
-from config import ADMIN_CHAT_ID
-from utils.helpers import (
-    is_banned, check_spam_limit, get_spam_warning_message, create_buttons,
-    get_hijri_date, get_live_time, get_daily_reminder, handle_user_content,
-    USERS_LIST, bot_data, save_data, AUTO_REPLIES
-)
+from states.admin_states import AdminStates
+from config import ADMIN_CHAT_ID, CHANNEL_ID
+from utils.helpers import *
+from utils.tasks import send_channel_message
 
-async def send_welcome(message: types.Message):
-    """Handler for the /start command."""
-    if is_banned(message.from_user.id): return
-    user_id = message.from_user.id
-    if user_id not in USERS_LIST:
-        USERS_LIST.add(user_id)
-        bot_data["users"] = list(USERS_LIST)
-        save_data(bot_data)
-    user_name = message.from_user.first_name or "عزيزي المستخدم"
-    custom_welcome = bot_data.get("welcome_message")
-    if custom_welcome:
-        welcome_text = custom_welcome.replace("{name}", user_name)
+async def admin_panel(message: types.Message):
+    await message.reply("🔧 **لوحة التحكم الإدارية**\n\nاختر الخيار المناسب من القائمة أدناه:", reply_markup=create_admin_panel(), parse_mode="Markdown")
+
+async def handle_admin_reply(message: types.Message):
+    replied_to_id = message.reply_to_message.message_id
+    if replied_to_id in user_messages:
+        user_info = user_messages[replied_to_id]
+        user_id = user_info["user_id"]
+        if is_banned(user_id):
+            await message.reply("❌ هذا المستخدم محظور!")
+            return
+        reply_text = f"رسالتك:\n{user_info['user_text']}\n\n📩 رد من الإدارة:\n{message.text}"
+        try:
+            await bot.send_message(user_id, reply_text)
+            await message.reply("✅ تم إرسال الرد بنجاح للمستخدم")
+        except Exception as e:
+            await message.reply(f"❌ خطأ في إرسال الرد: {e}")
     else:
-        welcome_text = (f"👋 أهلًا وسهلًا بك، {user_name}!\nهذا البوت مخصص للإجابة عن استفساراتك حول القناة...")
-    await message.reply(welcome_text, reply_markup=create_buttons(), parse_mode="Markdown")
+        await message.reply("❌ لم يتم العثور على الرسالة الأصلية.")
 
-async def handle_user_message(message: types.Message):
-    """Handles text messages from users."""
-    if is_banned(message.from_user.id): return
-    spam_allowed, spam_status = check_spam_limit(message.from_user.id)
-    if not spam_allowed:
-        await message.reply(get_spam_warning_message(spam_status, message.from_user.first_name))
-        return
-    user_message = message.text.strip()
-    if user_message in AUTO_REPLIES:
-        await message.reply(AUTO_REPLIES[user_message], reply_markup=create_buttons())
-        return
-    await handle_user_content(message, user_message)
-    custom_reply = bot_data.get("reply_message") or "🌿 تم الاستلام بنجاح! جزاك الله خيرًا على تواصلك."
-    await message.reply(custom_reply, reply_markup=create_buttons())
+# This single function will handle all admin callbacks to keep it clean.
+async def process_admin_callback(query: types.CallbackQuery, state: FSMContext):
+    await query.answer()
+    data = query.data
+    # (Here we will paste the entire logic from the original process_admin_callback function)
+    if data == "admin_stats":
+        stats_text = (f"📊 **إحصائيات البوت**\n\n"
+                      f"📝 الردود: {len(AUTO_REPLIES)}\n"
+                      f"💭 التذكيرات: {len(DAILY_REMINDERS)}\n"
+                      f"📢 رسائل القناة: {len(CHANNEL_MESSAGES)}\n"
+                      f"🚫 المحظورين: {len(BANNED_USERS)}\n"
+                      f"👥 المستخدمين: {len(USERS_LIST)}\n"
+                      f"💬 المحادثات: {len(user_threads)}")
+        await bot.edit_message_text(stats_text, query.from_user.id, query.message.message_id, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 العودة", callback_data="back_to_main")), parse_mode="Markdown")
+    
+    # --- Other admin callbacks ---
+    # (The full logic from the original file should be here)
+    elif data == "back_to_main":
+        await state.finish()
+        await bot.edit_message_text("🔧 **لوحة التحكم الإدارية**", query.from_user.id, query.message.message_id, reply_markup=create_admin_panel(), parse_mode="Markdown")
+    elif data == "close_panel":
+        await query.message.delete()
+        await bot.send_message(query.from_user.id, "✅ تم إغلاق لوحة التحكم")
 
-async def handle_media_message(message: types.Message):
-    """Handles non-text content from users and rejects it if not allowed."""
-    if is_banned(message.from_user.id): return
-    if not bot_data.get("allow_media", False):
-        await message.reply(bot_data.get("media_reject_message"))
-        bot_data["rejected_media_count"] = bot_data.get("rejected_media_count", 0) + 1
+# And all other `process_...` FSM handlers go here...
+async def process_new_reply(message: types.Message, state: FSMContext):
+    try:
+        trigger, response = map(str.strip, message.text.split('|', 1))
+        AUTO_REPLIES[trigger] = response
+        bot_data["auto_replies"] = AUTO_REPLIES
         save_data(bot_data)
-        return
-    await handle_user_content(message, "[وسائط]")
+        await message.reply(f"✅ تم إضافة الرد بنجاح!\n`{trigger}` -> `{response}`", parse_mode="Markdown")
+    except Exception as e:
+        await message.reply(f"❌ خطأ: {e}. استخدم الصيغة: `الكلمة|الرد`")
+    await state.finish()
+# (All other FSM handlers like process_new_reminder, process_ban_user etc. go here)
 
-async def process_callback(callback_query: types.CallbackQuery):
-    """Handles callbacks from the main menu buttons."""
-    if is_banned(callback_query.from_user.id):
-        await bot.answer_callback_query(callback_query.id, "❌ أنت محظور!")
-        return
-    await bot.answer_callback_query(callback_query.id)
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-    if data == "hijri_today":
-        await bot.send_message(user_id, get_hijri_date())
-    elif data == "live_time":
-        await bot.send_message(user_id, get_live_time())
-    elif data == "daily_reminder":
-        await bot.send_message(user_id, get_daily_reminder())
-    elif data == "from_developer":
-        await bot.send_message(user_id, "تم تطوير هذا البوت بواسطة ✨ ابو سيف بن ذي يزن ✨\n[فريق التقويم الهجري](https://t.me/HejriCalender)", parse_mode="Markdown")
-
-def register_user_handlers(dp: Dispatcher):
-    """Registers all user-facing handlers."""
-    dp.register_message_handler(send_welcome, commands=['start'], state="*")
-    dp.register_message_handler(handle_media_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.ANY, state="*")
-    # The text handler is now part of ANY content type, so we don't register it separately to avoid conflicts. Logic is inside handle_media_message.
-    dp.register_callback_query_handler(process_callback, lambda c: c.from_user.id != ADMIN_CHAT_ID, state="*")
+def register_admin_handlers(dp: Dispatcher):
+    dp.register_message_handler(admin_panel, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.text == "/admin", state="*")
+    dp.register_message_handler(handle_admin_reply, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.reply_to_message, content_types=types.ContentTypes.TEXT, state="*")
+    dp.register_callback_query_handler(process_admin_callback, lambda q: q.from_user.id == ADMIN_CHAT_ID, state="*")
+    # Register all FSM handlers
+    dp.register_message_handler(process_new_reply, state=AdminStates.waiting_for_new_reply)
+    # (Register all other FSM handlers here...)
 
 
-
+ 
