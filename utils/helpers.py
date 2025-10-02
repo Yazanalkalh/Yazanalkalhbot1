@@ -2,8 +2,8 @@ import datetime
 import random
 import pytz
 from hijri_converter import convert
-from aiogram import types, Dispatcher
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import types
 
 from database import load_data, save_data
 from loader import bot
@@ -21,7 +21,8 @@ DAILY_REMINDERS = bot_data.get("daily_reminders", [])
 CHANNEL_MESSAGES = bot_data.get("channel_messages", [])
 
 # متغيرات مؤقتة (لا تحفظ في قاعدة البيانات)
-user_threads = {}  # {user_id: {forwarded_id: original_id}}
+user_messages = {}
+user_threads = {}
 user_message_count = {}
 silenced_users = {}
 
@@ -59,18 +60,6 @@ def create_user_buttons():
 # --- دوال مساعدة ---
 def is_banned(user_id):
     return user_id in BANNED_USERS
-
-def ban_user(user_id):
-    """إضافة مستخدم لقائمة الحظر وحفظها"""
-    BANNED_USERS.add(user_id)
-    bot_data["banned_users"] = list(BANNED_USERS)
-    save_data(bot_data)
-
-def unban_user(user_id):
-    """إزالة مستخدم من قائمة الحظر وحفظها"""
-    BANNED_USERS.discard(user_id)
-    bot_data["banned_users"] = list(BANNED_USERS)
-    save_data(bot_data)
 
 def get_hijri_date():
     try:
@@ -118,43 +107,14 @@ def get_daily_reminder():
         return "لا توجد تذكيرات متاحة حالياً."
     return random.choice(DAILY_REMINDERS)
 
-# --- استقبال رسائل المستخدم وتحويلها للمشرف ---
 async def handle_user_content(message: types.Message):
+    """
+    تعيد توجيه رسالة المستخدم إلى المشرف وتسجل بيانات المحادثة.
+    """
     user_id = message.from_user.id
-
-    if message.content_type != "text":
-        await message.reply("🚫 البوت يدعم النصوص فقط.")
-        return
-
     try:
         forwarded_message = await message.forward(ADMIN_CHAT_ID)
-
-        # حفظ الربط بين رسالة العضو والرسالة المحولة
-        if user_id not in user_threads:
-            user_threads[user_id] = {}
-        user_threads[user_id][forwarded_message.message_id] = message.message_id
-
+        # تسجيل بيانات المحادثة للرد عليها لاحقاً
+        user_threads[user_id] = message.message_id
     except Exception as e:
         print(f"فشل إعادة توجيه الرسالة من {user_id}: {e}")
-
-# --- رد المشرف على المستخدم ---
-async def handle_admin_reply(message: types.Message):
-    if message.chat.id != ADMIN_CHAT_ID:
-        return
-
-    if not message.reply_to_message:
-        return
-
-    # البحث عن المستخدم الأصلي من user_threads
-    for user_id, messages_map in user_threads.items():
-        if message.reply_to_message.message_id in messages_map:
-            try:
-                await bot.send_message(user_id, f"💬 رد من المشرف:\n\n{message.text}")
-            except Exception as e:
-                print(f"فشل إرسال الرد للمستخدم {user_id}: {e}")
-            break
-
-# --- تسجيل الهاندلرز ---
-def register_handlers(dp: Dispatcher):
-    dp.register_message_handler(handle_user_content, content_types=types.ContentType.ANY)
-    dp.register_message_handler(handle_admin_reply, content_types=types.ContentType.TEXT)
