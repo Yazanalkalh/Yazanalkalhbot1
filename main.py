@@ -1,10 +1,11 @@
 import asyncio
+import os  # <-- هذا هو السطر الذي تم إضافته لإصلاح المشكلة
 from threading import Thread
 from flask import Flask
 from aiogram import executor
 
 # استيراد المكونات الأساسية للبوت
-from loader import dp, bot
+from loader import dp
 from utils.tasks import startup_tasks
 from handlers import admin, user
 
@@ -18,7 +19,6 @@ def home():
 
 def run_web_server():
     """تشغيل خادم الويب في الخلفية."""
-    # Render يحدد المنفذ تلقائيًا، 10000 هو خيار احتياطي
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
 
@@ -28,12 +28,8 @@ async def on_startup(dispatcher):
     يتم تنفيذ هذه الدالة عند بدء تشغيل البوت.
     تقوم بتسجيل المعالجات وبدء المهام الخلفية.
     """
-    # تسجيل معالجات المشرف والمستخدم
     admin.register_admin_handlers(dispatcher)
     user.register_user_handlers(dispatcher)
-
-    # --- **هذا هو السطر الذي تم تصحيحه** ---
-    # الآن نقوم بتمرير 'dispatcher' (المعروف بـ dp) إلى دالة بدء المهام
     await startup_tasks(dispatcher)
 
 # --- نقطة انطلاق البرنامج الرئيسية ---
