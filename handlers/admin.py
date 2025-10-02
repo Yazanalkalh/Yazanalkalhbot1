@@ -7,9 +7,13 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from loader import bot
 from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
-from utils.helpers import *
 from utils.tasks import send_channel_message
-from database import save_data
+from database import save_data, bot_data
+from utils.helpers import (
+    create_admin_panel, user_threads, start_time, USERS_LIST,
+    BANNED_USERS, AUTO_REPLIES, DAILY_REMINDERS, CHANNEL_MESSAGES,
+    user_message_count, silenced_users
+)
 
 # --- دالة لوحة التحكم الرئيسية ---
 async def admin_panel(message: types.Message):
@@ -24,6 +28,7 @@ async def handle_admin_reply(message: types.Message):
     original_user_message_id = user_threads.get(user_id_to_reply)
 
     try:
+        # استخدام copy_to لإرسال الرد بشكل خفي
         await message.copy_to(chat_id=user_id_to_reply, reply_to_message_id=original_user_message_id)
         await message.reply("✅ **تم إرسال ردك للمستخدم بنجاح.**")
     except Exception as e:
@@ -55,7 +60,7 @@ async def process_admin_callback(cq: types.CallbackQuery, state: FSMContext):
     if data in list_menus:
         title, back_cb, items = list_menus[data]
         text = f"{title}\n\n" + ("\n".join(items) if items else "لا يوجد شيء لعرضه حالياً.")
-        await cq.message.edit_text(text, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔙 العودة", callback_data=back_cb)))
+        await cq.message.edit_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔙 العودة", callback_data=back_cb)))
         return
 
     prompts = {
@@ -79,7 +84,7 @@ async def process_admin_callback(cq: types.CallbackQuery, state: FSMContext):
     if data in prompts:
         prompt_text, state_to_set = prompts[data]
         await state.set_state(state_to_set)
-        await cq.message.edit_text(f"{prompt_text}\n\nلإلغاء العملية، أرسل /cancel.")
+        await cq.message.edit_text(f"{prompt_text}\n\nلإلغاء العملية، أرسل /cancel.", parse_mode="Markdown")
         return
 
     if data == "close_panel": await cq.message.delete()
@@ -130,14 +135,14 @@ async def process_text_input(m: types.Message, state: FSMContext, success_msg: s
     if data_list is not None: data_list.append(text)
     bot_data[data_key] = data_list if data_list is not None else text
     save_data(bot_data)
-    await m.reply(success_msg.format(text=text), reply_markup=create_admin_panel())
+    await m.reply(success_msg.format(text=text), parse_mode="Markdown", reply_markup=create_admin_panel())
     await state.finish()
 
 async def process_new_reply(m: types.Message, state: FSMContext):
     try:
         trigger, response = map(str.strip, m.text.split('|', 1))
         AUTO_REPLIES[trigger] = response; bot_data["auto_replies"] = AUTO_REPLIES; save_data(bot_data)
-        await m.reply(f"✅ **تم إضافة الرد بنجاح!**\n\n**عندما يقول المستخدم:** `{trigger}`\n**سيرد البوت:** {response}", reply_markup=create_admin_panel())
+        await m.reply(f"✅ **تم إضافة الرد بنجاح!**\n\n**عندما يقول المستخدم:** `{trigger}`\n**سيرد البوت:** {response}", parse_mode="Markdown", reply_markup=create_admin_panel())
     except ValueError: await m.reply("❌ **تنسيق خاطئ!**\nالرجاء استخدام: `الكلمة المفتاحية|نص الرد`")
     await state.finish()
 
@@ -145,8 +150,8 @@ async def process_delete_reply(m: types.Message, state: FSMContext):
     trigger = m.text.strip()
     if trigger in AUTO_REPLIES:
         del AUTO_REPLIES[trigger]; bot_data["auto_replies"] = AUTO_REPLIES; save_data(bot_data)
-        await m.reply(f"✅ تم حذف الرد الخاص بالكلمة `{trigger}` بنجاح.", reply_markup=create_admin_panel())
-    else: await m.reply(f"❌ لم يتم العثور على رد للكلمة `{trigger}`.")
+        await m.reply(f"✅ تم حذف الرد الخاص بالكلمة `{trigger}` بنجاح.", parse_mode="Markdown", reply_markup=create_admin_panel())
+    else: await m.reply(f"❌ لم يتم العثور على رد للكلمة `{trigger}`.", parse_mode="Markdown")
     await state.finish()
 
 async def process_delete_by_index(m: types.Message, state: FSMContext, data_list: list, data_key: str, item_name: str):
@@ -154,7 +159,7 @@ async def process_delete_by_index(m: types.Message, state: FSMContext, data_list
         idx = int(m.text.strip()) - 1
         if 0 <= idx < len(data_list):
             removed = data_list.pop(idx); bot_data[data_key] = data_list; save_data(bot_data)
-            await m.reply(f"✅ تم حذف {item_name}:\n`{removed}`", reply_markup=create_admin_panel())
+            await m.reply(f"✅ تم حذف {item_name}:\n`{removed}`", parse_mode="Markdown", reply_markup=create_admin_panel())
         else: await m.reply(f"❌ رقم غير صالح. الرجاء إدخال رقم بين 1 و {len(data_list)}.")
     except ValueError: await m.reply("❌ الرجاء إرسال رقم صحيح.")
     await state.finish()
@@ -164,11 +169,11 @@ async def process_ban_unban(m: types.Message, state: FSMContext, ban_action: boo
         user_id = int(m.text.strip())
         if ban_action:
             BANNED_USERS.add(user_id)
-            await m.reply(f"🚫 تم حظر المستخدم `{user_id}` بنجاح.", reply_markup=create_admin_panel())
+            await m.reply(f"🚫 تم حظر المستخدم `{user_id}` بنجاح.", parse_mode="Markdown", reply_markup=create_admin_panel())
         else:
             if user_id in BANNED_USERS:
                 BANNED_USERS.remove(user_id)
-                await m.reply(f"✅ تم إلغاء حظر المستخدم `{user_id}` بنجاح.", reply_markup=create_admin_panel())
+                await m.reply(f"✅ تم إلغاء حظر المستخدم `{user_id}` بنجاح.", parse_mode="Markdown", reply_markup=create_admin_panel())
             else: await m.reply("❌ هذا المستخدم غير محظور أصلاً.")
         bot_data["banned_users"] = list(BANNED_USERS); save_data(bot_data)
     except ValueError: await m.reply("❌ الرجاء إرسال ID رقمي صحيح.")
@@ -190,11 +195,11 @@ async def process_clear_user_id(m: types.Message, state: FSMContext):
         count = 0
         if user_id in user_message_count: del user_message_count[user_id]; count += 1
         if user_id in silenced_users: del silenced_users[user_id]; count += 1
-        await m.reply(f"✅ تم مسح {count} سجل من ذاكرة الحماية للمستخدم `{user_id}`.", reply_markup=create_admin_panel())
+        await m.reply(f"✅ تم مسح {count} سجل من ذاكرة الحماية للمستخدم `{user_id}`.", parse_mode="Markdown", reply_markup=create_admin_panel())
     except ValueError: await m.reply("❌ الرجاء إرسال ID رقمي صحيح.")
     await state.finish()
     
-# --- تسجيل جميع المعالجات ---
+# --- دالة تسجيل المعالجات ---
 def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(admin_panel, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.text == "/admin", state="*")
     dp.register_message_handler(handle_admin_reply, lambda m: m.from_user.id == ADMIN_CHAT_ID and m.reply_to_message, content_types=types.ContentTypes.ANY, state="*")
