@@ -181,6 +181,7 @@ async def process_ban_unban(m: types.Message, state: FSMContext, ban_action: boo
 
 async def process_broadcast(m: types.Message, state: FSMContext):
     success_count = 0; failed_count = 0
+    await m.reply(f"📤 **بدء الإرسال الجماعي لـ {len(USERS_LIST)} مستخدم...**")
     for user_id in USERS_LIST:
         try:
             await m.copy_to(user_id); success_count += 1
@@ -213,7 +214,13 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: process_delete_by_index(m, s, DAILY_REMINDERS, "daily_reminders", "التذكير"), state=AdminStates.waiting_for_delete_reminder)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, "✅ **تم إضافة رسالة القناة بنجاح!**\n\nالنص: {text}", "channel_messages", CHANNEL_MESSAGES), state=AdminStates.waiting_for_new_channel_message)
     dp.register_message_handler(lambda m, s: process_delete_by_index(m, s, CHANNEL_MESSAGES, "channel_messages", "الرسالة"), state=AdminStates.waiting_for_delete_channel_msg)
-    dp.register_message_handler(lambda m, s: send_channel_message(m.text.strip()), state=AdminStates.waiting_for_instant_channel_post)
+    
+    @dp.message_handler(state=AdminStates.waiting_for_instant_channel_post)
+    async def process_instant_post(m: types.Message, state: FSMContext):
+        await send_channel_message(m.text.strip())
+        await m.reply("✅ تم إرسال الرسالة إلى القناة.", reply_markup=create_admin_panel())
+        await state.finish()
+
     dp.register_message_handler(lambda m, s: process_ban_unban(m, s, ban_action=True), state=AdminStates.waiting_for_ban_id)
     dp.register_message_handler(lambda m, s: process_ban_unban(m, s, ban_action=False), state=AdminStates.waiting_for_unban_id)
     dp.register_message_handler(process_broadcast, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_broadcast_message)
@@ -227,10 +234,11 @@ def register_admin_handlers(dp: Dispatcher):
     async def process_schedule_time(m: types.Message, state: FSMContext):
         try:
             hours = float(m.text.strip())
-            bot_data["schedule_interval_seconds"] = int(hours * 3600)
-            save_data(bot_data)
-            await m.reply(f"✅ **تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.**", reply_markup=create_admin_panel())
+            if hours <= 0:
+                await m.reply("❌ يجب أن تكون الفترة أكبر من صفر.")
+            else:
+                bot_data["schedule_interval_seconds"] = int(hours * 3600)
+                save_data(bot_data)
+                await m.reply(f"✅ **تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.**", reply_markup=create_admin_panel())
         except ValueError: await m.reply("❌ الرجاء إرسال رقم صحيح.")
         await state.finish()
-
-
