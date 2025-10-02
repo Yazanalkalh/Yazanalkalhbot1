@@ -21,8 +21,7 @@ DAILY_REMINDERS = bot_data.get("daily_reminders", [])
 CHANNEL_MESSAGES = bot_data.get("channel_messages", [])
 
 # متغيرات مؤقتة (لا تحفظ في قاعدة البيانات)
-user_messages = {}
-user_threads = {}
+user_threads = {}  # {user_id: {forwarded_id: original_id}}
 user_message_count = {}
 silenced_users = {}
 
@@ -129,7 +128,12 @@ async def handle_user_content(message: types.Message):
 
     try:
         forwarded_message = await message.forward(ADMIN_CHAT_ID)
-        user_threads[user_id] = forwarded_message.message_id
+
+        # حفظ الربط بين رسالة العضو والرسالة المحولة
+        if user_id not in user_threads:
+            user_threads[user_id] = {}
+        user_threads[user_id][forwarded_message.message_id] = message.message_id
+
     except Exception as e:
         print(f"فشل إعادة توجيه الرسالة من {user_id}: {e}")
 
@@ -141,9 +145,9 @@ async def handle_admin_reply(message: types.Message):
     if not message.reply_to_message:
         return
 
-    # البحث عن المستخدم الأصلي
-    for user_id, forwarded_id in user_threads.items():
-        if message.reply_to_message.message_id == forwarded_id:
+    # البحث عن المستخدم الأصلي من user_threads
+    for user_id, messages_map in user_threads.items():
+        if message.reply_to_message.message_id in messages_map:
             try:
                 await bot.send_message(user_id, f"💬 رد من المشرف:\n\n{message.text}")
             except Exception as e:
