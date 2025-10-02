@@ -17,44 +17,38 @@ async def send_welcome(message: types.Message):
 
     user_name = message.from_user.first_name or "عزيزي المستخدم"
     welcome_text = (bot_data.get("welcome_message") or 
-                    (f"👋 أهلًا وسهلًا بك، {user_name}!\n"
+                    (f"👋 أهلًا وسهلًا بك يا {user_name}!\n\n"
                      "هذا البوت مخصص لملاحظاتك واستفساراتك.\n"
-                     "تفضّل بطرح سؤالك وسيتم الرد عليك. ✨"))
+                     "تفضّل بطرح سؤالك وسيتم الرد عليك في أقرب وقت. ✨"))
     
     final_text = welcome_text.replace("{name}", user_name)
     await message.reply(final_text, reply_markup=create_buttons(), parse_mode="Markdown")
 
 async def handle_user_message(message: types.Message):
-    """
-    يعالج الرسائل النصية من المستخدمين بالمنطق الصحيح.
-    """
+    """يعالج الرسائل النصية من المستخدمين بالمنطق الصحيح."""
     if is_banned(message.from_user.id): return
 
-    # التحقق من نظام منع الرسائل المزعجة
     spam_allowed, spam_status = check_spam_limit(message.from_user.id)
     if not spam_allowed:
         await message.reply(get_spam_warning_message(spam_status, message.from_user.first_name))
         return
 
-    # الخطوة 1: فحص الردود التلقائية أولاً
     user_text = message.text.strip()
     if user_text in AUTO_REPLIES:
         await message.reply(AUTO_REPLIES[user_text], reply_markup=create_buttons())
-        return # يتوقف هنا إذا وجد رداً تلقائياً
+        return
 
-    # الخطوة 2: إذا لم يكن هناك رد، أرسل المحتوى للمشرف
     await handle_user_content(message)
 
-    # الخطوة 3: أرسل رسالة تأكيد للمستخدم
-    reply_text = bot_data.get("reply_message") or "✅ تم استلام رسالتك بنجاح، شكراً لتواصلك."
-    await message.reply(reply_text, reply_markup=create_buttons())
+    reply_text = bot_data.get("reply_message") or "✅ **تم استلام رسالتك بنجاح**\n\nشكراً لتواصلك معنا. سيتم مراجعتها والرد عليك قريباً."
+    await message.reply(reply_text, reply_markup=create_buttons(), parse_mode="Markdown")
 
 async def handle_media_message(message: types.Message):
     """يعالج رسائل الوسائط ويمنعها إذا لزم الأمر."""
     if is_banned(message.from_user.id): return
 
     if not bot_data.get("allow_media", False):
-        reject_message = bot_data.get("media_reject_message", "❌ عذراً، يُسمح بالرسائل النصية فقط.")
+        reject_message = bot_data.get("media_reject_message", "❌ عذراً، يُسمح بالرسائل النصية فقط في الوقت الحالي.")
         await message.reply(reject_message)
         bot_data["rejected_media_count"] = bot_data.get("rejected_media_count", 0) + 1
         save_data(bot_data)
@@ -66,7 +60,7 @@ async def handle_media_message(message: types.Message):
 async def process_user_callback(callback_query: types.CallbackQuery):
     """يعالج ضغطات الأزرار من المستخدمين."""
     if is_banned(callback_query.from_user.id):
-        await bot.answer_callback_query(callback_query.id, "❌ أنت محظور!", show_alert=True)
+        await bot.answer_callback_query(callback_query.id, "❌ أنت محظور من استخدام البوت!", show_alert=True)
         return
     
     await bot.answer_callback_query(callback_query.id)
@@ -77,7 +71,6 @@ async def process_user_callback(callback_query: types.CallbackQuery):
         "hijri_today": get_hijri_date(),
         "live_time": get_live_time(),
         "daily_reminder": get_daily_reminder(),
-        # **هذا هو التحديث الذي طلبته لزر المطور**
         "from_developer": "تم تطوير هذا البوت بواسطة ✨ ابو سيف بن ذي يزن ✨\n[فريق التقويم الهجري](https://t.me/HejriCalender)"
     }
     
@@ -89,7 +82,6 @@ def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(send_welcome, commands=['start'], state="*")
     dp.register_callback_query_handler(process_user_callback, lambda q: q.from_user.id != ADMIN_CHAT_ID, state="*")
     
-    # معالجة الوسائط (كل شيء ما عدا النص)
     media_types = [
         types.ContentType.PHOTO, types.ContentType.VIDEO, types.ContentType.DOCUMENT,
         types.ContentType.AUDIO, types.ContentType.VOICE, types.ContentType.VIDEO_NOTE,
@@ -97,8 +89,6 @@ def register_user_handlers(dp: Dispatcher):
         types.ContentType.LOCATION
     ]
     dp.register_message_handler(handle_media_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=media_types, state="*")
-
-    # معالجة النص (يأتي أخيراً)
     dp.register_message_handler(handle_user_message, lambda m: m.from_user.id != ADMIN_CHAT_ID, content_types=types.ContentTypes.TEXT, state="*")
 
 
