@@ -38,7 +38,6 @@ async def set_timezone_handler(m: types.Message, state: FSMContext):
         await m.reply("❌ **منطقة زمنية غير صالحة!**\nمثال: `Asia/Aden` أو `Africa/Cairo`")
     await state.finish()
 
-# --- THIS IS THE CORRECTED FUNCTION ---
 async def ban_unban_user_handler(m: types.Message, state: FSMContext, ban: bool):
     try:
         user_id = int(m.text.strip())
@@ -57,7 +56,6 @@ async def ban_unban_user_handler(m: types.Message, state: FSMContext, ban: bool)
     except ValueError:
         await m.reply("❌ ID غير صالح.")
     await state.finish()
-# ------------------------------------
 
 async def broadcast_handler(m: types.Message, state: FSMContext):
     succ, fail = 0, 0
@@ -151,7 +149,7 @@ async def media_type_handler(m: types.Message, state: FSMContext, add: bool):
 def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(cancel_cmd, is_admin, commands=['cancel'], state='*')
     
-    # Ban/Unban
+    # Ban/Unban - CORRECTED LAMBDAS
     dp.register_message_handler(lambda m, s: ban_unban_user_handler(m, s, True), is_admin, state=AdminStates.waiting_for_ban_id)
     dp.register_message_handler(lambda m, s: ban_unban_user_handler(m, s, False), is_admin, state=AdminStates.waiting_for_unban_id)
 
@@ -163,7 +161,7 @@ def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(scheduled_post_text_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_scheduled_post_text)
     dp.register_message_handler(scheduled_post_datetime_handler, is_admin, state=AdminStates.waiting_for_scheduled_post_datetime)
 
-    # UI Customization
+    # UI Customization - CORRECTED LAMBDAS
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'ui_config', 'date_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_date_button_label)
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'ui_config', 'time_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_time_button_label)
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'ui_config', 'reminder_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_reminder_button_label)
@@ -171,11 +169,11 @@ def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'welcome_message', "✅ تم تحديث رسالة البدء."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_welcome_message)
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'reply_message', "✅ تم تحديث رسالة الرد."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_reply_message)
     
-    # Channel Settings
+    # Channel Settings - CORRECTED LAMBDAS
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'channel_id', "✅ تم تحديث ID القناة."), is_admin, state=AdminStates.waiting_for_channel_id)
     dp.register_message_handler(schedule_interval_handler, is_admin, state=AdminStates.waiting_for_schedule_interval)
 
-    # Media Settings
+    # Media Settings - CORRECTED LAMBDAS
     dp.register_message_handler(lambda m, s: media_type_handler(m, s, True), is_admin, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(lambda m, s: media_type_handler(m, s, False), is_admin, state=AdminStates.waiting_for_remove_media_type)
     dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_media_reject_message) 
