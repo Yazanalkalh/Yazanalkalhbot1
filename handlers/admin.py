@@ -17,7 +17,8 @@ async def admin_reply_cmd(m: types.Message):
         try:
             await m.copy_to(link["user_id"], reply_to_message_id=link["original_message_id"])
             await m.reply("✅ **تم إرسال الرد بنجاح.**")
-            del data_store.forwarded_message_links[m.reply_to_message.message_id]
+            if m.reply_to_message.message_id in data_store.forwarded_message_links:
+                del data_store.forwarded_message_links[m.reply_to_message.message_id]
         except Exception as e: await m.reply(f"❌ **فشل إرسال الرد:** {e}")
 
 # --- Central Callback Query Handler ---
@@ -27,10 +28,10 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     d = cq.data
     cfg = data_store.bot_data['bot_settings']
     
-    # Instant Actions
     if d == "close_panel": await cq.message.delete(); return
     if d == "back_to_main": await cq.message.edit_text("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel()); return
     
+    # Instant Actions
     if d == "admin_stats":
         stats_text = (f"📊 **إحصائيات البوت:**\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data['users'])}\n"
@@ -125,14 +126,13 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 # --- FSM Handlers ---
 async def cancel_cmd(m: types.Message, s: FSMContext): await s.finish(); await m.reply("✅ تم إلغاء العملية.", reply_markup=create_admin_panel())
 
-# --- Text/Numeric Input Handlers ---
 async def process_text_input(m: types.Message, s: FSMContext, data_key: list, success_msg: str, is_list=False, kb_info=None):
     val = m.text.strip(); target = data_store.bot_data
     for k in data_key[:-1]: target = target.setdefault(k, {})
     if is_list: target.setdefault(data_key[-1], []).append(val)
     else: target[data_key[-1]] = val
     data_store.save_data()
-    reply_markup = add_another_kb(kb_info[0], kb_info[1]) if kb_info else create_admin_panel()
+    reply_markup = add_another_kb(*kb_info) if kb_info else create_admin_panel()
     await m.reply(success_msg.format(value=val), reply_markup=reply_markup)
     await s.finish()
 
@@ -156,7 +156,6 @@ async def process_delete_by_index(m: types.Message, s: FSMContext, data_key: str
     except (ValueError, IndexError): await m.reply("❌ الرجاء إرسال رقم صحيح.")
     await s.finish()
 
-# --- Specific FSM Handlers ---
 async def dyn_reply_keyword(m: types.Message, s: FSMContext): await s.update_data(keyword=m.text.strip()); await m.reply("👍 الآن أرسل **المحتوى**."); await AdminStates.next()
 async def dyn_reply_content(m: types.Message, s: FSMContext):
     data = await s.get_data(); keyword, content = data['keyword'], m.text
@@ -233,6 +232,7 @@ async def remove_media_type(m: types.Message, s: FSMContext):
 def register_admin_handlers(dp: Dispatcher):
     f = lambda msg: msg.from_user.id == ADMIN_CHAT_ID
     
+    # Main Commands
     dp.register_message_handler(admin_panel_cmd, f, commands=['admin'], state="*")
     dp.register_message_handler(admin_reply_cmd, f, is_reply=True, content_types=types.ContentTypes.ANY, state="*")
     dp.register_callback_query_handler(callbacks_cmd, f, state="*")
@@ -256,6 +256,7 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: ban_unban_user(m, s, False), f, state=AdminStates.waiting_for_unban_id)
     dp.register_message_handler(broadcast_msg, f, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_broadcast_message)
     
+    # UI Customization
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['ui_config', 'date_button_label'], "✅ تم تحديث اسم الزر."), f, state=AdminStates.waiting_for_date_button_label)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['ui_config', 'time_button_label'], "✅ تم تحديث اسم الزر."), f, state=AdminStates.waiting_for_time_button_label)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['ui_config', 'reminder_button_label'], "✅ تم تحديث اسم الزر."), f, state=AdminStates.waiting_for_reminder_button_label)
@@ -263,16 +264,17 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'welcome_message'], "✅ تم تحديث رسالة الترحيب."), f, state=AdminStates.waiting_for_welcome_message)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'reply_message'], "✅ تم تحديث رسالة الرد."), f, state=AdminStates.waiting_for_reply_message)
     
+    # Memory
     dp.register_message_handler(clear_user, f, state=AdminStates.waiting_for_clear_user_id)
     
+    # Channel Settings
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'channel_id'], "✅ تم تحديث ID القناة."), f, state=AdminStates.waiting_for_channel_id)
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'schedule_interval_seconds', "✅ تم تحديث فترة النشر."), f, state=AdminStates.waiting_for_schedule_interval)
 
+    # Security
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'spam_message_limit', "✅ تم تحديث حد الرسائل."), f, state=AdminStates.waiting_for_spam_limit)
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'spam_time_window', "✅ تم تحديث الفترة الزمنية."), f, state=AdminStates.waiting_for_spam_window)
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'slow_mode_seconds', "✅ تم تحديث فترة التباطؤ."), f, state=AdminStates.waiting_for_slow_mode)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','allowed_media_types'],"✅ تم السماح بالنوع: {value}",True), f, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(remove_media_type, f, state=AdminStates.waiting_for_remove_media_type)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','media_reject_message'], "✅ تم تحديث رسالة الرفض."), f, state=AdminStates.waiting_for_media_reject_message)
-
-
