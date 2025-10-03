@@ -1,7 +1,7 @@
 import datetime
 from database import load_db_data, save_db_data
 
-# Default structure
+# --- Default Bot Structure ---
 DEFAULT_DATA = {
     "users": [],
     "banned_users": [],
@@ -12,23 +12,23 @@ DEFAULT_DATA = {
     ],
     "dynamic_replies": {},
     "channel_messages": [
-        "🌙 بسم الله نبدأ يوماً جديداً\n\n💎 قال تعالى: {وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا}",
-        "🌟 تذكير إيماني\n\n📖 قال رسول الله ﷺ: (إن الله جميل يحب الجمال)"
+        "🌙 بسم الله نبدأ يوماً جديداً\n\n💎 قال تعالى: {وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا}\n\n✨ اتق الله في السر والعلن، يجعل لك من كل ضيق مخرجاً ومن كل هم فرجاً.",
+        "🌟 تذكير إيماني\n\n📖 قال رسول الله ﷺ: (إن الله جميل يحب الجمال)\n\n🌸 اجعل جمال أخلاقك يعكس جمال إيمانك."
     ],
     "scheduled_posts": [],
     "bot_settings": {
         "maintenance_mode": False,
         "maintenance_message": "عذراً، البوت قيد الصيانة حالياً. سنعود قريباً.",
         "content_protection": False,
-        "welcome_message": "👋 أهلاً وسهلاً بك يا #name!\n\nأنا بوت التقويم الهجري. أرسل رسالتك وسيتم الرد عليك.",
-        "reply_message": "✅ تم استلام رسالتك بنجاح، شكراً لتواصلك.",
-        "media_reject_message": "❌ عذراً، يُسمح فقط بالرسائل النصية.",
+        "welcome_message": "👋 أهلًا وسهلًا بك, #name!\nأنا هنا لخدمتك.",
+        "reply_message": "🌿 تم استلام رسالتك بنجاح! سيتم التواصل معك قريباً.",
+        "media_reject_message": "❌ عذراً، يُسمح بالرسائل النصية فقط.",
         "allowed_media_types": ["text"],
-        "channel_id": "",
-        "schedule_interval_seconds": 86400,
         "spam_message_limit": 5,
         "spam_time_window": 60,
-        "slow_mode_seconds": 0
+        "slow_mode_seconds": 0,
+        "channel_id": "",
+        "schedule_interval_seconds": 86400
     },
     "ui_config": {
         "date_button_label": "📅 التاريخ",
@@ -38,34 +38,28 @@ DEFAULT_DATA = {
     }
 }
 
-# --- Global Data Store ---
+# --- Live Data Store ---
 bot_data = {}
 start_time = datetime.datetime.now()
-# These are temporary runtime caches, not saved to DB
 forwarded_message_links = {}
 user_last_message_time = {}
 
 def initialize_data():
-    """Loads data from DB and merges with defaults."""
+    """Load data from DB and merge with defaults to prevent errors."""
     global bot_data
     db_data = load_db_data()
-    # A simple way to merge nested dictionaries
+    
+    # Deep merge defaults with DB data
     merged_data = DEFAULT_DATA.copy()
     for key, value in db_data.items():
         if isinstance(value, dict) and key in merged_data:
             merged_data[key].update(value)
         else:
             merged_data[key] = value
+
     bot_data = merged_data
     print("✅ Bot data initialized.")
 
 def save_data():
-    """Saves the current bot_data state to the database."""
-    # Create a copy to avoid saving runtime caches
-    data_to_save = bot_data.copy()
-    # Remove keys that shouldn't be persisted
-    data_to_save.pop("_id", None)
-    save_db_data(data_to_save)
-
-# Initialize data on startup
-initialize_data()
+    """Save the current state of bot_data to the database."""
+    save_db_data(bot_data)
