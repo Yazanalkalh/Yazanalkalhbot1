@@ -1,26 +1,28 @@
 import os
 from dotenv import load_dotenv
 
-# تحميل المتغيرات من ملف .env (للتشغيل المحلي)
+# تحميل متغيرات البيئة من ملف .env (للتشغيل المحلي)
 load_dotenv()
 
-# قراءة المتغيرات من بيئة التشغيل (Render) أو ملف .env
-API_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_CHAT_ID_STR = os.getenv("ADMIN_CHAT_ID")
+# --- المتغيرات الأساسية ---
+# توكن البوت الذي تحصل عليه من BotFather
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# معرف حسابك الرقمي في تيليجرام لتلقي الرسائل واستخدام لوحة التحكم
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+
+# رابط الاتصال بقاعدة بيانات MongoDB Atlas
 MONGO_URI = os.getenv("MONGO_URI")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-# التحقق من وجود المتغيرات الأساسية
-if not all([API_TOKEN, ADMIN_CHAT_ID_STR, MONGO_URI]):
-    print("❌ خطأ فادح: تأكد من وجود BOT_TOKEN, ADMIN_CHAT_ID, MONGO_URI في متغيرات البيئة!")
+# --- التحقق من وجود المتغيرات ---
+print("🔍 Checking environment variables...")
+if not all([BOT_TOKEN, ADMIN_CHAT_ID, MONGO_URI]):
+    print("❌ Critical Error: BOT_TOKEN, ADMIN_CHAT_ID, and MONGO_URI must be set in environment variables!")
     exit(1)
 
-# تحويل آيدي المشرف إلى رقم صحيح مع معالجة الأخطاء
 try:
-    ADMIN_CHAT_ID = int(ADMIN_CHAT_ID_STR)
-    print(f"✅ تم تعيين المشرف: {ADMIN_CHAT_ID}")
-except (ValueError, TypeError):
-    print(f"❌ خطأ فادح: قيمة ADMIN_CHAT_ID ({ADMIN_CHAT_ID_STR}) ليست رقماً صحيحاً!")
+    ADMIN_CHAT_ID = int(ADMIN_CHAT_ID)
+    print(f"✅ Admin ID has been set: {ADMIN_CHAT_ID}")
+except ValueError:
+    print("❌ Critical Error: ADMIN_CHAT_ID must be a valid integer.")
     exit(1)
-
-print("✅ جميع متغيرات البيئة الأساسية موجودة.")
