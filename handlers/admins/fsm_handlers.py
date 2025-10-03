@@ -38,20 +38,26 @@ async def set_timezone_handler(m: types.Message, state: FSMContext):
         await m.reply("❌ **منطقة زمنية غير صالحة!**\nمثال: `Asia/Aden` أو `Africa/Cairo`")
     await state.finish()
 
+# --- THIS IS THE CORRECTED FUNCTION ---
 async def ban_unban_user_handler(m: types.Message, state: FSMContext, ban: bool):
     try:
         user_id = int(m.text.strip())
         b_list = data_store.bot_data.setdefault('banned_users', [])
         if ban:
-            if user_id not in b_list: b_list.append(user_id)
+            if user_id not in b_list:
+                b_list.append(user_id)
             await m.reply(f"🚫 تم حظر `{user_id}`.", reply_markup=create_admin_panel())
         else:
-            if user_id in b_list: b_list.remove(user_id)
-            await m.reply(f"✅ تم إلغاء حظر `{user_id}`.")
-            else: await m.reply(f"ℹ️ المستخدم `{user_id}` غير محظور أصلاً.")
+            if user_id in b_list:
+                b_list.remove(user_id)
+                await m.reply(f"✅ تم إلغاء حظر `{user_id}`.")
+            else:
+                await m.reply(f"ℹ️ المستخدم `{user_id}` غير محظور أصلاً.")
         data_store.save_data()
-    except ValueError: await m.reply("❌ ID غير صالح.")
+    except ValueError:
+        await m.reply("❌ ID غير صالح.")
     await state.finish()
+# ------------------------------------
 
 async def broadcast_handler(m: types.Message, state: FSMContext):
     succ, fail = 0, 0
@@ -131,9 +137,13 @@ async def media_type_handler(m: types.Message, state: FSMContext, add: bool):
         if media_type not in allowed: allowed.append(media_type)
         await m.reply(f"✅ تم السماح بالنوع: `{media_type}`.", reply_markup=create_admin_panel())
     else:
-        if media_type == 'text': await m.reply("❌ لا يمكن منع الرسائل النصية.");
-        elif media_type in allowed: allowed.remove(media_type); await m.reply(f"✅ تم منع النوع: `{media_type}`.", reply_markup=create_admin_panel())
-        else: await m.reply(f"❌ النوع `{media_type}` غير مسموح به أصلاً.");
+        if media_type == 'text':
+            await m.reply("❌ لا يمكن منع الرسائل النصية.")
+        elif media_type in allowed:
+            allowed.remove(media_type)
+            await m.reply(f"✅ تم منع النوع: `{media_type}`.", reply_markup=create_admin_panel())
+        else:
+            await m.reply(f"❌ النوع `{media_type}` غير مسموح به أصلاً.")
     data_store.save_data()
     await state.finish()
 
@@ -168,4 +178,4 @@ def register_fsm_handlers(dp: Dispatcher):
     # Media Settings
     dp.register_message_handler(lambda m, s: media_type_handler(m, s, True), is_admin, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(lambda m, s: media_type_handler(m, s, False), is_admin, state=AdminStates.waiting_for_remove_media_type)
-    dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_media_reject_message)
+    dp.register_message_handler(lambda m, s: simple_text_handler(m, s, 'bot_settings', 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_media_reject_message) 
