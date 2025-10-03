@@ -8,11 +8,9 @@ from loader import bot
 from config import ADMIN_CHAT_ID
 
 def is_banned(user_id):
-    """يتحقق مما إذا كان المستخدم محظوراً."""
     return user_id in data_store.bot_data['banned_users']
 
 def get_hijri_date():
-    """ينشئ نص التاريخ بناءً على الإعدادات."""
     try:
         today = datetime.date.today()
         hijri = convert.Gregorian(today.year, today.month, today.day).to_hijri()
@@ -27,24 +25,22 @@ def get_hijri_date():
         return f"عذراً، حدث خطأ: {e}"
 
 def get_live_time():
-    """ينشئ نص الوقت بناءً على المنطقة الزمنية المحفوظة."""
     try:
         timezone_str = data_store.bot_data['ui_config'].get('timezone', 'Asia/Aden')
         target_tz = pytz.timezone(timezone_str)
         now = datetime.datetime.now(target_tz)
         time_12h = now.strftime('%I:%M:%S')
         period_ar = "صباحاً" if now.strftime('%p') == "AM" else "مساءً"
-        return f"**الوقت :** {time_12h} {period_ar} بتوقيت صنعاء"
+        city = timezone_str.split('/')[-1]
+        return f"**الوقت :** {time_12h} {period_ar} بتوقيت {city}"
     except Exception as e:
         return f"عذراً، حدث خطأ: {e}"
 
 def get_daily_reminder():
-    """يحصل على تذكير يومي عشوائي."""
     reminders = data_store.bot_data.get('reminders', [])
     return random.choice(reminders) if reminders else "لا توجد تذكيرات حالياً."
 
 async def forward_to_admin(message: types.Message):
-    """يعيد توجيه رسالة المستخدم للمشرف ويسجل بيانات الربط للرد."""
     try:
         fw_msg = await message.forward(ADMIN_CHAT_ID)
         data_store.forwarded_message_links[fw_msg.message_id] = {
@@ -55,9 +51,10 @@ async def forward_to_admin(message: types.Message):
         print(f"Failed to forward message from {message.from_user.id}: {e}")
 
 def process_klisha(text: str, user: types.User) -> str:
-    """يعالج الهاشتاقات في النص ويستبدلها بمعلومات المستخدم."""
     if not text: return ""
-    return text.replace("#name_user", user.get_mention(as_html=True))\
+    # Use <a> tag for mentioning user to avoid Markdown parsing issues
+    user_mention = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
+    return text.replace("#name_user", user_mention)\
                .replace("#username", f"@{user.username}" if user.username else user.full_name)\
                .replace("#name", user.full_name)\
                .replace("#id", str(user.id))
