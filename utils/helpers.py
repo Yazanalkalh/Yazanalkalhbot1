@@ -4,6 +4,7 @@ import pytz
 from hijri_converter import convert
 from babel.dates import format_date
 import data_store
+from loader import bot # Import bot from loader
 
 def get_hijri_date_str():
     """Returns a formatted Hijri and Gregorian date string in Arabic."""
@@ -45,10 +46,15 @@ def format_welcome_message(message_text, user):
             .replace("#name", user.first_name)
             .replace("#id", str(user.id)))
 
-async def forward_to_admin(message, bot):
+# --- THIS IS THE CORRECTED FUNCTION ---
+async def forward_to_admin(message: types.Message):
     """Forwards a user's message to the admin with a special format."""
-    from config import ADMIN_CHAT_ID
+    from config import ADMIN_CHAT_ID # Import here to avoid circular dependency
+    from aiogram import types # Ensure types is available
+
     user_info = f"📩 <b>رسالة جديدة من:</b> {message.from_user.full_name}\n<b>ID:</b> <code>{message.from_user.id}</code>"
+    print(f"Attempting to forward message from {message.from_user.id} to admin {ADMIN_CHAT_ID}")
+
     try:
         # Send user info first
         await bot.send_message(ADMIN_CHAT_ID, user_info)
@@ -59,5 +65,6 @@ async def forward_to_admin(message, bot):
             "user_id": message.from_user.id,
             "original_message_id": message.message_id
         }
+        print("Message forwarded successfully.")
     except Exception as e:
-        print(f"FORWARDING ERROR: {e}")
+        print(f"CRITICAL FORWARDING ERROR: {e}")
