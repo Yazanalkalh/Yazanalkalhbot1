@@ -7,27 +7,19 @@ import datetime
 from config import ADMIN_CHAT_ID
 from loader import bot
 
-def is_regular_user(message: types.Message):
-    """A filter to ensure the message is from a regular user (not admin)."""
+# This filter ensures the message is NOT from the admin.
+def is_not_admin(message: types.Message):
+    """A filter to ensure the message is not from the admin."""
     return message.from_user.id != ADMIN_CHAT_ID
 
-async def message_handler(message: types.Message):
-    """Handler for all messages from regular users."""
+async def message_handler(message: types.Message, state: FSMContext):
+    """Handler for all other user messages."""
     user_id = message.from_user.id
     settings = data_store.bot_data['bot_settings']
 
     # Ban Check
     if user_id in data_store.bot_data['banned_users']:
         return
-
-    # Slow Mode & Spam are combined for simplicity
-    slow_mode_seconds = settings.get('slow_mode_seconds', 0)
-    if slow_mode_seconds > 0:
-        last_msg_time = data_store.user_last_message_time.get(user_id)
-        if last_msg_time and (datetime.datetime.now() - last_msg_time).total_seconds() < slow_mode_seconds:
-            await message.reply(f"⏳ الرجاء الانتظار {slow_mode_seconds} ثواني بين الرسائل.")
-            return
-        data_store.user_last_message_time[user_id] = datetime.datetime.now()
     
     # Media Type Check
     allowed_media = settings.get('allowed_media_types', ['text'])
@@ -51,7 +43,9 @@ async def message_handler(message: types.Message):
 def register_message_handler(dp: Dispatcher):
     """
     Registers the handler for user messages.
-    This handler will now ONLY run for messages from non-admins AND who are not in any FSM state.
-    This is the crucial fix to prevent it from interfering with admin commands.
+    It will only trigger for users who are NOT the admin AND are not in any FSM state.
     """
-    dp.register_message_handler(message_handler, is_regular_user, state=None, content_types=types.ContentTypes.ANY)
+    # --- THIS IS THE CRITICAL FIX ---
+    # We add state=None to ensure this handler only runs for users not in a conversation.
+    # This prevents it from intercepting admin commands.
+    dp.register_message_handler(message_handler, is_not_admin, state=None, content_types=types.ContentTypes.ANY)
