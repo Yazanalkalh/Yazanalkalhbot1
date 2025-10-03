@@ -3,12 +3,10 @@ import asyncio
 from flask import Flask
 from threading import Thread
 from aiogram.utils import executor
-
 from loader import dp
-from handlers import admin, user # Import both handlers
+from handlers import admin, user
 import data_store
 from utils.tasks import startup_tasks
-import config
 
 # --- Web Server to Keep Bot Alive on Render ---
 app = Flask(__name__)
@@ -24,14 +22,10 @@ def run_web_server():
 # --- Bot Startup Logic ---
 async def on_startup(dispatcher):
     """Function to run on bot startup."""
-    # Initialize bot data from database
     data_store.initialize_data()
     
-    # --- THIS IS THE CRITICAL FIX ---
-    # Register ADMIN handlers FIRST, so they are checked before user handlers.
+    # Register handlers
     admin.register_admin_handlers(dispatcher)
-    
-    # Register USER handlers SECOND.
     user.register_user_handlers(dispatcher)
     
     # Run background tasks
