@@ -4,9 +4,8 @@ from utils.helpers import forward_to_admin
 from keyboards.inline.user_keyboards import create_user_buttons
 import datetime
 from config import ADMIN_CHAT_ID
-from loader import bot # Import bot from loader
+from loader import bot
 
-# This filter checks if the message sender is NOT the admin.
 def is_not_admin(message: types.Message):
     """A filter to ensure the message is not from the admin."""
     return message.from_user.id != ADMIN_CHAT_ID
@@ -42,13 +41,17 @@ async def message_handler(message: types.Message):
         return
 
     # If no dynamic reply, forward to admin and notify user
-    await forward_to_admin(message) # No need to pass bot here anymore
+    await forward_to_admin(message)
     await message.reply(
         settings.get('reply_message', "✅ تم استلام رسالتك بنجاح، شكراً لتواصلك."), 
         reply_markup=create_user_buttons()
     )
 
 def register_message_handler(dp: Dispatcher):
-    """Registers the handler for user messages, ensuring it ignores the admin."""
-    # This handler will now ONLY run for messages from non-admins.
-    dp.register_message_handler(message_handler, is_not_admin, content_types=types.ContentTypes.ANY)
+    """
+    Registers the handler for user messages.
+    It will only trigger for users who are NOT the admin AND are not in any FSM state.
+    """
+    # --- THIS IS THE CRITICAL FIX ---
+    # We add state=None to ensure this handler only runs for users not in a conversation.
+    dp.register_message_handler(message_handler, is_not_admin, state=None, content_types=types.ContentTypes.ANY) 
