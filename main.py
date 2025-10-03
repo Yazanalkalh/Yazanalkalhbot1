@@ -1,5 +1,4 @@
 import os
-import asyncio
 from threading import Thread
 from flask import Flask
 from aiogram import executor
@@ -7,7 +6,7 @@ from loader import dp
 from handlers import admin, user
 from utils.tasks import startup_tasks
 
-# --- خادم الويب لإبقاء البوت نشطاً ---
+# --- Web Server to keep the bot alive ---
 app = Flask(__name__)
 @app.route('/')
 def home():
@@ -17,26 +16,26 @@ def run_web_server():
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- دالة بدء التشغيل ---
+# --- Bot Startup Function ---
 async def on_startup(dispatcher):
     """
-    يتم تنفيذها عند بدء تشغيل البوت.
+    Executes when the bot starts up.
     """
-    # تسجيل معالجات الرسائل
+    # Register message handlers
     user.register_user_handlers(dispatcher)
     admin.register_admin_handlers(dispatcher)
     
-    # بدء المهام الخلفية
+    # Start background tasks
     await startup_tasks(dispatcher)
     
     print("🚀 Bot has been started and is running!")
 
-# --- نقطة انطلاق البرنامج ---
+# --- Main entry point ---
 if __name__ == '__main__':
-    # بدء خادم الويب في خيط منفصل
+    # Start the web server in a separate thread
     web_thread = Thread(target=run_web_server)
     web_thread.daemon = True
     web_thread.start()
     
-    # بدء البوت
+    # Start the bot
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
