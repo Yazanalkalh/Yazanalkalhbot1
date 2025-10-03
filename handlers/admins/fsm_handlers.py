@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import pytz
-from aiogram import types
+from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from loader import bot
 from states.admin_states import AdminStates
@@ -201,7 +201,7 @@ async def schedule_interval_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 # --- Handler Registration ---
-def register_fsm_handlers(dp: types.Dispatcher):
+def register_fsm_handlers(dp: Dispatcher):
     # This function registers all the state handlers.
     dp.register_message_handler(cancel_cmd, commands=['cancel'], state='*')
 
@@ -251,4 +251,6 @@ def register_fsm_handlers(dp: types.Dispatcher):
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, ['bot_settings', 'slow_mode_seconds'], "✅ تم تحديث فترة التباطؤ."), state=AdminStates.waiting_for_slow_mode)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'allowed_media_types'], "✅ تم السماح بالنوع: {value}", True), state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(remove_media_type, state=AdminStates.waiting_for_remove_media_type)
-    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'media_reject_message'], "✅ تم تحديث رسالة الرفض."), state=AdminStates.waiting_for_media_reject_message) 
+    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'media_reject_message'], "✅ تم تحديث رسالة الرفض."), state=AdminStates.waiting_for_media_reject_message)
+
+
