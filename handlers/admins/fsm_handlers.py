@@ -4,78 +4,81 @@ from loader import bot
 from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
 import data_store
-from keyboards.inline.admin_keyboards import create_admin_panel, add_another_kb
-import datetime
-import pytz
+from keyboards.inline.admin_keyboards import create_admin_panel, add_another_kb, back_kb
 
-# --- This is a simple, correct filter that works with states ---
 def is_admin(message: types.Message):
+    """A filter to check if the user is an admin."""
     return message.from_user.id == ADMIN_CHAT_ID
 
 # --- FSM Handlers ---
+
 async def cancel_cmd(m: types.Message, state: FSMContext): 
-    await state.finish()
-    await m.reply("✅ تم إلغاء العملية.", reply_markup=create_admin_panel())
+    """Handles the /cancel command to exit any state."""
+    if await state.get_state() is not None:
+        await state.finish()
+        await m.reply("✅ تم إلغاء العملية بنجاح.", reply_markup=create_admin_panel())
+
+# --- Dynamic Replies FSM ---
 
 async def dyn_reply_keyword(m: types.Message, state: FSMContext): 
+    """Step 1 for adding a dynamic reply: get the keyword."""
     await state.update_data(keyword=m.text.strip())
-    await m.reply("👍 الآن أرسل **المحتوى** للرد.")
+    await m.reply("👍 ممتاز. الآن أرسل **المحتوى** الذي سيظهر كرد على هذه الكلمة.")
     await AdminStates.next()
 
 async def dyn_reply_content(m: types.Message, state: FSMContext):
+    """Step 2 for adding a dynamic reply: get the content."""
     data = await state.get_data()
     keyword, content = data['keyword'], m.text
-    data_store.bot_data['dynamic_replies'][keyword] = content
+    data_store.bot_data.setdefault('dynamic_replies', {})[keyword] = content
     data_store.save_data()
-    await m.reply("✅ **تمت برمجة الرد بنجاح!**", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
+    await m.reply(f"✅ **تمت برمجة الرد بنجاح!**\n\n`{keyword}` ⬅️ `{content}`", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
     await state.finish()
 
 async def dyn_reply_delete(m: types.Message, state: FSMContext):
+    """Handles deletion of a dynamic reply."""
     keyword = m.text.strip()
-    if keyword in data_store.bot_data['dynamic_replies']:
-        del data_store.bot_data['dynamic_replies'][keyword]
+    replies = data_store.bot_data.get('dynamic_replies', {})
+    if keyword in replies:
+        del replies[keyword]
         data_store.save_data()
-        await m.reply(f"✅ تم حذف الرد الخاص بـ `{keyword}`", reply_markup=add_another_kb("delete_dyn_reply", "admin_dyn_replies"))
+        await m.reply(f"✅ تم حذف الرد الخاص بالكلمة المفتاحية: `{keyword}`", reply_markup=add_another_kb("delete_dyn_reply", "admin_dyn_replies"))
     else:
         await m.reply("❌ لم يتم العثور على رد بهذا الاسم.", reply_markup=create_admin_panel())
     await state.finish()
 
-# --- Generic Handlers for different input types ---
+# --- Reminders FSM ---
 
-async def process_text_input(m: types.Message, state: FSMContext, data_key: list, success_msg: str, is_list=False, kb_info=None):
-    value = m.text.strip()
-    target = data_store.bot_data
-    for k in data_key[:-1]:
-        target = target.setdefault(k, {})
-    
-    if is_list:
-        target.setdefault(data_key[-1], []).append(value)
-    else:
-        target[data_key[-1]] = value
-        
+async def add_reminder_text(m: types.Message, state: FSMContext):
+    """Handles adding a new reminder."""
+    reminder_text = m.text.strip()
+    data_store.bot_data.setdefault('reminders', []).append(reminder_text)
     data_store.save_data()
-    reply_markup = add_another_kb(*kb_info) if kb_info else create_admin_panel()
-    await m.reply(success_msg.format(value=value), reply_markup=reply_markup)
+    await m.reply(f"✅ تم إضافة التذكير:\n`{reminder_text}`", reply_markup=add_another_kb("add_reminder", "admin_reminders"))
     await state.finish()
 
-async def process_delete_by_index(m: types.Message, state: FSMContext, data_key: str, item_name: str, kb_info: tuple):
+async def delete_reminder_index(m: types.Message, state: FSMContext):
+    """Handles deleting a reminder by its index."""
+    reminders = data_store.bot_data.get('reminders', [])
     try:
         idx = int(m.text.strip()) - 1
-        lst = data_store.bot_data.get(data_key, [])
-        if 0 <= idx < len(lst):
-            removed = lst.pop(idx)
+        if 0 <= idx < len(reminders):
+            removed = reminders.pop(idx)
             data_store.save_data()
-            await m.reply(f"✅ تم حذف {item_name}:\n`{removed}`", reply_markup=add_another_kb(*kb_info))
+            await m.reply(f"✅ تم حذف التذكير:\n`{removed}`", reply_markup=add_another_kb("delete_reminder", "admin_reminders"))
         else:
-            await m.reply(f"❌ رقم غير صالح. الأرقام المتاحة من 1 إلى {len(lst)}")
+            await m.reply(f"❌ رقم غير صالح. الرجاء إرسال رقم بين 1 و {len(reminders)}.")
     except (ValueError, IndexError):
-        await m.reply("❌ الرجاء إرسال رقم صحيح من القائمة.")
+        await m.reply("❌ الرجاء إرسال رقم صحيح.")
     await state.finish()
 
+# --- Ban/Unban FSM ---
+
 async def ban_unban_user(m: types.Message, state: FSMContext, ban: bool):
+    """Handles banning and unbanning users by ID."""
     try:
         user_id = int(m.text.strip())
-        b_list = data_store.bot_data['banned_users']
+        b_list = data_store.bot_data.setdefault('banned_users', [])
         if ban:
             if user_id not in b_list:
                 b_list.append(user_id)
@@ -90,50 +93,65 @@ async def ban_unban_user(m: types.Message, state: FSMContext, ban: bool):
     except ValueError:
         await m.reply("❌ ID غير صالح. الرجاء إرسال رقم صحيح.")
     await state.finish()
-    
+
+# --- Channel FSM ---
+
+async def add_channel_msg_text(m: types.Message, state: FSMContext):
+    """Handles adding a new channel message."""
+    msg_text = m.text.strip()
+    data_store.bot_data.setdefault('channel_messages', []).append(msg_text)
+    data_store.save_data()
+    await m.reply(f"✅ تم إضافة رسالة القناة:\n`{msg_text[:50]}...`", reply_markup=add_another_kb("add_channel_msg", "admin_channel"))
+    await state.finish()
+
+async def delete_channel_msg_index(m: types.Message, state: FSMContext):
+    """Handles deleting a channel message by its index."""
+    messages = data_store.bot_data.get('channel_messages', [])
+    try:
+        idx = int(m.text.strip()) - 1
+        if 0 <= idx < len(messages):
+            removed = messages.pop(idx)
+            data_store.save_data()
+            await m.reply(f"✅ تم حذف رسالة القناة:\n`{removed[:50]}...`", reply_markup=add_another_kb("delete_channel_msg", "admin_channel"))
+        else:
+            await m.reply(f"❌ رقم غير صالح. الرجاء إرسال رقم بين 1 و {len(messages)}.")
+    except (ValueError, IndexError):
+        await m.reply("❌ الرجاء إرسال رقم صحيح.")
+    await state.finish()
+
+# --- Settings FSM ---
+
+async def set_channel_id_text(m: types.Message, state: FSMContext):
+    """Sets the channel ID."""
+    channel_id = m.text.strip()
+    data_store.bot_data.setdefault('bot_settings', {})['channel_id'] = channel_id
+    data_store.save_data()
+    await m.reply(f"✅ تم تحديث ID القناة إلى: `{channel_id}`", reply_markup=create_admin_panel())
+    await state.finish()
+
 # --- Handler Registration ---
 
 def register_fsm_handlers(dp: Dispatcher):
+    """Registers all FSM handlers for the admin."""
     # Register cancel command for all states
     dp.register_message_handler(cancel_cmd, is_admin, commands=['cancel'], state='*')
     
-    # Dynamic Replies
+    # Dynamic Replies FSM
     dp.register_message_handler(dyn_reply_keyword, is_admin, state=AdminStates.waiting_for_dyn_reply_keyword)
     dp.register_message_handler(dyn_reply_content, is_admin, state=AdminStates.waiting_for_dyn_reply_content)
     dp.register_message_handler(dyn_reply_delete, is_admin, state=AdminStates.waiting_for_dyn_reply_delete)
     
-    # Reminders
-    dp.register_message_handler(
-        lambda m, s: process_text_input(m, s, ['reminders'], "✅ تم إضافة التذكير بنجاح.", True, ("add_reminder", "admin_reminders")),
-        is_admin, state=AdminStates.waiting_for_new_reminder
-    )
-    dp.register_message_handler(
-        lambda m, s: process_delete_by_index(m, s, "reminders", "التذكير", ("delete_reminder", "admin_reminders")),
-        is_admin, state=AdminStates.waiting_for_delete_reminder
-    )
+    # Reminders FSM
+    dp.register_message_handler(add_reminder_text, is_admin, state=AdminStates.waiting_for_new_reminder)
+    dp.register_message_handler(delete_reminder_index, is_admin, state=AdminStates.waiting_for_delete_reminder)
     
-    # Channel Messages
-    dp.register_message_handler(
-        lambda m, s: process_text_input(m, s, ['channel_messages'], "✅ تم إضافة رسالة القناة بنجاح.", True, ("add_channel_msg", "admin_channel")),
-        is_admin, state=AdminStates.waiting_for_new_channel_msg
-    )
-    dp.register_message_handler(
-        lambda m, s: process_delete_by_index(m, s, "channel_messages", "الرسالة", ("delete_channel_msg", "admin_channel")),
-        is_admin, state=AdminStates.waiting_for_delete_channel_msg
-    )
-    
-    # Ban Management
-    dp.register_message_handler(
-        lambda m, s: ban_unban_user(m, s, True), 
-        is_admin, state=AdminStates.waiting_for_ban_id
-    )
-    dp.register_message_handler(
-        lambda m, s: ban_unban_user(m, s, False), 
-        is_admin, state=AdminStates.waiting_for_unban_id
-    )
+    # Ban/Unban FSM
+    dp.register_message_handler(lambda m, s: ban_unban_user(m, s, True), is_admin, state=AdminStates.waiting_for_ban_id)
+    dp.register_message_handler(lambda m, s: ban_unban_user(m, s, False), is_admin, state=AdminStates.waiting_for_unban_id)
 
-    # Channel Settings
-    dp.register_message_handler(
-        lambda m, s: process_text_input(m, s, ['bot_settings', 'channel_id'], "✅ تم تحديث ID القناة إلى: {value}"),
-        is_admin, state=AdminStates.waiting_for_channel_id
-    ) 
+    # Channel FSM
+    dp.register_message_handler(add_channel_msg_text, is_admin, state=AdminStates.waiting_for_new_channel_msg)
+    dp.register_message_handler(delete_channel_msg_index, is_admin, state=AdminStates.waiting_for_delete_channel_msg)
+    
+    # Settings FSM
+    dp.register_message_handler(set_channel_id_text, is_admin, state=AdminStates.waiting_for_channel_id) 
