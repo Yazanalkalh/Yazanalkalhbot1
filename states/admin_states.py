@@ -36,7 +36,6 @@ class AdminStates(StatesGroup):
     waiting_for_spam_limit = State()
     waiting_for_spam_window = State()
     waiting_for_slow_mode = State()
-    # Media Settings
     waiting_for_add_media_type = State()
     waiting_for_remove_media_type = State()
     waiting_for_media_reject_message = State()
