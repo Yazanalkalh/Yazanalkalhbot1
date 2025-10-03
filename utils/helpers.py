@@ -3,58 +3,43 @@ import random
 import pytz
 from hijri_converter import convert
 from aiogram import types
-import data_store
-from loader import bot
-from config import ADMIN_CHAT_ID
 
-def is_banned(user_id):
-    return user_id in data_store.bot_data['banned_users']
+def get_hijri_date_string():
+    """Generates the formatted Hijri and Gregorian date string in Arabic."""
+    today = datetime.date.today()
+    gregorian = convert.Gregorian(today.year, today.month, today.day)
+    hijri = gregorian.to_hijri()
 
-def get_hijri_date():
+    hijri_months_ar = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"]
+    gregorian_months_ar = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+    weekdays_ar = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+
+    day_name = weekdays_ar[today.weekday()]
+    hijri_month_name = hijri_months_ar[hijri.month - 1]
+    gregorian_month_name = gregorian_months_ar[today.month - 1]
+
+    return (f"<b>اليوم :</b> {day_name}\n"
+            f"<b>التاريخ :</b> {hijri.day} {hijri_month_name} {hijri.year}هـ\n"
+            f"<b>الموافق :</b> {today.day} {gregorian_month_name} {today.year}م")
+
+def get_live_time_string(timezone_str: str):
+    """Generates the formatted 12-hour time string for a given timezone."""
     try:
-        today = datetime.date.today()
-        hijri = convert.Gregorian(today.year, today.month, today.day).to_hijri()
-        weekdays_ar = {0: "الإثنين", 1: "الثلاثاء", 2: "الأربعاء", 3: "الخميس", 4: "الجمعة", 5: "السبت", 6: "الأحد"}
-        day_name_ar = weekdays_ar[today.weekday()]
-        gregorian_months_ar = {1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل", 5: "مايو", 6: "يونيو", 7: "يوليو", 8: "أغسطس", 9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"}
-        gregorian_month_name_ar = gregorian_months_ar[today.month]
-        hijri_date_str = f"{hijri.day} {hijri.month_name()} {hijri.year}هـ"
-        gregorian_date_str = f"{today.day} {gregorian_month_name_ar} {today.year} م"
-        return f"**اليوم :** {day_name_ar}\n**التاريخ :** {hijri_date_str}\n**الموافق :** {gregorian_date_str}"
+        tz = pytz.timezone(timezone_str)
+        now = datetime.datetime.now(tz)
+        period = "صباحاً" if now.hour < 12 else "مساءً"
+        hour_12 = now.hour if now.hour == 12 else now.hour % 12
+        if hour_12 == 0: hour_12 = 12 # Adjust for 12 AM
+        return f"<b>الوقت :</b> {hour_12:02d}:{now.minute:02d} {period} بتوقيت صنعاء"
+    except pytz.UnknownTimeZoneError:
+        return "⚠️ منطقة زمنية غير صالحة."
     except Exception as e:
-        return f"عذراً، حدث خطأ: {e}"
-
-def get_live_time():
-    try:
-        timezone_str = data_store.bot_data['ui_config'].get('timezone', 'Asia/Aden')
-        target_tz = pytz.timezone(timezone_str)
-        now = datetime.datetime.now(target_tz)
-        time_12h = now.strftime('%I:%M:%S')
-        period_ar = "صباحاً" if now.strftime('%p') == "AM" else "مساءً"
-        city = timezone_str.split('/')[-1]
-        return f"**الوقت :** {time_12h} {period_ar} بتوقيت {city}"
-    except Exception as e:
-        return f"عذراً، حدث خطأ: {e}"
-
-def get_daily_reminder():
-    reminders = data_store.bot_data.get('reminders', [])
-    return random.choice(reminders) if reminders else "لا توجد تذكيرات حالياً."
-
-async def forward_to_admin(message: types.Message):
-    try:
-        fw_msg = await message.forward(ADMIN_CHAT_ID)
-        data_store.forwarded_message_links[fw_msg.message_id] = {
-            "user_id": message.from_user.id,
-            "original_message_id": message.message_id
-        }
-    except Exception as e:
-        print(f"Failed to forward message from {message.from_user.id}: {e}")
-
+        return f"⚠️ حدث خطأ: {e}"
+        
 def process_klisha(text: str, user: types.User) -> str:
+    """Replaces placeholders in a string with user information."""
     if not text: return ""
-    # Use <a> tag for mentioning user to avoid Markdown parsing issues
-    user_mention = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
-    return text.replace("#name_user", user_mention)\
-               .replace("#username", f"@{user.username}" if user.username else user.full_name)\
-               .replace("#name", user.full_name)\
-               .replace("#id", str(user.id))
+    return text.replace("#name_user", user.get_mention(as_html=True)) \
+               .replace("#username", f"@{user.username}" if user.username else "لا يوجد") \
+               .replace("#name", user.full_name) \
+               .replace("#id", str(user.id)) 
