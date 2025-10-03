@@ -33,7 +33,19 @@ class AdminStates(StatesGroup):
     waiting_for_timezone = State()
     waiting_for_welcome_message = State()
     waiting_for_reply_message = State()
-    waiting_for_media_reject_message = State()
     
     # Memory Management
     waiting_for_clear_user_id = State()
+    
+    # Channel Settings
+    waiting_for_channel_id = State()
+    waiting_for_schedule_interval = State()
+
+    # Security Settings
+    waiting_for_maintenance_message = State()
+    waiting_for_spam_limit = State()
+    waiting_for_spam_window = State()
+    waiting_for_slow_mode = State()
+    waiting_for_add_media_type = State()
+    waiting_for_remove_media_type = State()
+    waiting_for_media_reject_message = State()
