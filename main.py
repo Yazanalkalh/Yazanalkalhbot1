@@ -1,20 +1,20 @@
 import os
 import asyncio
-from aiogram import executor
-from flask import Flask, request
+from flask import Flask
 from threading import Thread
+from aiogram.utils import executor
 
-from loader import dp, bot
+from loader import dp
 from handlers import admin, user
-from utils import tasks
 import data_store
+from utils.tasks import startup_tasks
 
 # --- Web Server to Keep Bot Alive on Render ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot server is running!"
+    return "Bot is alive and running!"
 
 def run_web_server():
     port = int(os.environ.get('PORT', 10000))
@@ -23,29 +23,22 @@ def run_web_server():
 # --- Bot Startup Logic ---
 async def on_startup(dispatcher):
     """Function to run on bot startup."""
-    print("Bot is starting up...")
+    # Initialize bot data from database
+    data_store.initialize_data()
     
     # Register all handlers
-    admin.register_admin_handlers(dispatcher)
     user.register_user_handlers(dispatcher)
+    admin.register_admin_handlers(dispatcher)
     
-    # Start background tasks
-    await tasks.startup_tasks(dispatcher)
-    
-    # Send startup message to admin
-    try:
-        await bot.send_message(data_store.config.ADMIN_CHAT_ID, "✅ **تم تشغيل البوت بنجاح!**\n\n- البوت متصل وجاهز لاستقبال الرسائل.\n- خادم الويب يعمل.\n- المهام الخلفية نشطة.")
-    except Exception as e:
-        print(f"Warning: Could not send startup message to admin. {e}")
-        
-    print("✅ Bot is online and ready!")
+    # Run background tasks
+    await startup_tasks(dispatcher)
 
-# --- Main Entry Point ---
 if __name__ == '__main__':
     # Start the web server in a separate thread
     web_thread = Thread(target=run_web_server)
     web_thread.daemon = True
     web_thread.start()
-    
-    # Start the bot polling
+
+    # Start the bot
+    print("Starting bot polling...")
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
