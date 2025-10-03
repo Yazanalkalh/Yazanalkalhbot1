@@ -58,7 +58,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         status_text = f"🚀 **حالة النشر:**\n\n✅ نشط ومستقر\n⏰ مدة التشغيل: {str(uptime).split('.')[0]}"
         await cq.message.edit_text(status_text, reply_markup=back_kb()); return
 
-    # Direct action
+    # Direct action for the new "Test Channel" button
     if d == "test_channel":
         channel_id = data_store.bot_data.get('bot_settings', {}).get('channel_id')
         if channel_id:
