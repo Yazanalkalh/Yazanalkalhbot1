@@ -2,44 +2,62 @@ import datetime
 import random
 import pytz
 from hijri_converter import convert
-from aiogram import types
+from babel.dates import format_date
+import data_store
 
-def get_hijri_date_string():
-    """Generates the formatted Hijri and Gregorian date string in Arabic."""
+def get_hijri_date_str():
+    """Returns a formatted Hijri and Gregorian date string in Arabic."""
     today = datetime.date.today()
-    gregorian = convert.Gregorian(today.year, today.month, today.day)
-    hijri = gregorian.to_hijri()
-
-    hijri_months_ar = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"]
-    gregorian_months_ar = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
-    weekdays_ar = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
-
-    day_name = weekdays_ar[today.weekday()]
-    hijri_month_name = hijri_months_ar[hijri.month - 1]
-    gregorian_month_name = gregorian_months_ar[today.month - 1]
+    hijri_date = convert.Gregorian(today.year, today.month, today.day).to_hijri()
+    
+    day_name = format_date(today, "EEEE", locale="ar")
+    hijri_str = f"{hijri_date.day} {hijri_date.month_name('ar')} {hijri_date.year}هـ"
+    gregorian_str = format_date(today, "d MMMM yyyy", locale="ar") + " م"
 
     return (f"<b>اليوم :</b> {day_name}\n"
-            f"<b>التاريخ :</b> {hijri.day} {hijri_month_name} {hijri.year}هـ\n"
-            f"<b>الموافق :</b> {today.day} {gregorian_month_name} {today.year}م")
+            f"<b>التاريخ :</b> {hijri_str}\n"
+            f"<b>الموافق :</b> {gregorian_str}")
 
-def get_live_time_string(timezone_str: str):
-    """Generates the formatted 12-hour time string for a given timezone."""
+def get_live_time_str():
+    """Returns a formatted time string for the configured timezone."""
     try:
-        tz = pytz.timezone(timezone_str)
-        now = datetime.datetime.now(tz)
-        period = "صباحاً" if now.hour < 12 else "مساءً"
-        hour_12 = now.hour if now.hour == 12 else now.hour % 12
-        if hour_12 == 0: hour_12 = 12 # Adjust for 12 AM
-        return f"<b>الوقت :</b> {hour_12:02d}:{now.minute:02d} {period} بتوقيت صنعاء"
+        tz_name = data_store.bot_data['ui_config']['timezone']
+        user_tz = pytz.timezone(tz_name)
     except pytz.UnknownTimeZoneError:
-        return "⚠️ منطقة زمنية غير صالحة."
+        user_tz = pytz.timezone('Asia/Aden') # Fallback
+
+    now = datetime.datetime.now(user_tz)
+    time_str = now.strftime("%I:%M %p")
+    am_pm_arabic = "صباحاً" if now.strftime("%p") == "AM" else "مساءً"
+    
+    return f"<b>الساعة الآن :</b>\n{time_str.replace('AM', am_pm_arabic).replace('PM', am_pm_arabic)} (بتوقيت صنعاء)"
+
+def get_random_reminder():
+    """Returns a random reminder."""
+    reminders = data_store.bot_data.get('reminders', [])
+    return random.choice(reminders) if reminders else "لا توجد تذكيرات متاحة حالياً."
+
+def format_welcome_message(message_text, user):
+    """Formats the welcome message with user-specific hashtags."""
+    return (message_text
+            .replace("#name_user", f"<a href='tg://user?id={user.id}'>{user.first_name}</a>")
+            .replace("#username", f"@{user.username}" if user.username else user.first_name)
+            .replace("#name", user.first_name)
+            .replace("#id", str(user.id)))
+
+async def forward_to_admin(message, bot):
+    """Forwards a user's message to the admin with a special format."""
+    from config import ADMIN_CHAT_ID
+    user_info = f"📩 <b>رسالة جديدة من:</b> {message.from_user.full_name}\n<b>ID:</b> <code>{message.from_user.id}</code>"
+    try:
+        # Send user info first
+        await bot.send_message(ADMIN_CHAT_ID, user_info)
+        # Then forward the actual message
+        fwd_msg = await message.forward(ADMIN_CHAT_ID)
+        # Link admin's forwarded message to the user for easy reply
+        data_store.forwarded_message_links[fwd_msg.message_id] = {
+            "user_id": message.from_user.id,
+            "original_message_id": message.message_id
+        }
     except Exception as e:
-        return f"⚠️ حدث خطأ: {e}"
-        
-def process_klisha(text: str, user: types.User) -> str:
-    """Replaces placeholders in a string with user information."""
-    if not text: return ""
-    return text.replace("#name_user", user.get_mention(as_html=True)) \
-               .replace("#username", f"@{user.username}" if user.username else "لا يوجد") \
-               .replace("#name", user.full_name) \
-               .replace("#id", str(user.id)) 
+        print(f"FORWARDING ERROR: {e}")
