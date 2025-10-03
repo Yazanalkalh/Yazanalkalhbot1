@@ -1,27 +1,53 @@
 import datetime
-from database import load_data_from_db, save_data_to_db
+from database import load_all_data, save_all_data as db_save
 
-# --- تحميل البيانات والمتغيرات العامة ---
-bot_data = load_data_from_db()
+# القالب الافتراضي الكامل لإعدادات البوت
+DEFAULT_SETTINGS = {
+    "users": [],
+    "banned_users": [],
+    "reminders": [
+        "🌅 سبحان الله وبحمده، سبحان الله العظيم.",
+        "🤲 اللهم أعني على ذكرك وشكرك وحسن عبادتك.",
+        "💎 لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير."
+    ],
+    "channel_messages": [
+        "🌙 بسم الله نبدأ يوماً جديداً\n\n💎 قال تعالى: {وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا}",
+        "🌟 تذكير إيماني\n\n📖 قال رسول الله ﷺ: (إن الله جميل يحب الجمال)"
+    ],
+    "dynamic_replies": {
+        "مرحبا": "أهلاً وسهلاً بك!",
+        "السلام عليكم": "وعليكم السلام ورحمة الله وبركاته."
+    },
+    "scheduled_posts": [],
+    "bot_config": {
+        "channel_id": "",
+        "schedule_interval_seconds": 86400,
+        "allow_media": False,
+        "welcome_message": "👋 **أهلاً بك، #name!**\n\nهذا البوت مخصص للتواصل مع فريق القناة. أرسل استفسارك وسيتم الرد عليك.",
+        "reply_message": "✅ **تم استلام رسالتك!** سيقوم الفريق بمراجعتها والرد عليك.",
+        "media_reject_message": "❌ **عذراً،** يُسمح بإرسال الرسائل النصية فقط حالياً."
+    },
+    "ui_config": {
+        "date_button_label": "📅 اليوم هجري",
+        "time_button_label": "⏰ الساعة الان",
+        "reminder_button_label": "💡 تذكير يومي",
+        "timezone": "Asia/Aden"
+    }
+}
+
+# --- تهيئة البيانات عند بدء التشغيل ---
+# هذا هو المتغير الرئيسي الذي سيستخدمه كل البوت
+bot_data = load_all_data()
 start_time = datetime.datetime.now()
 
-# قوائم البيانات التي يتم تحديثها باستمرار
-USERS_LIST = set(bot_data.get("users", []))
-BANNED_USERS = set(bot_data.get("banned_users", []))
-AUTO_REPLIES = bot_data.get("auto_replies", {})
-DAILY_REMINDERS = bot_data.get("daily_reminders", [])
-CHANNEL_MESSAGES = bot_data.get("channel_messages", [])
-
-# متغيرات مؤقتة (لا تحفظ في قاعدة البيانات)
-user_threads = {}
+# متغيرات مؤقتة (لا يتم حفظها في قاعدة البيانات)
+forwarded_message_links = {}
 user_message_count = {}
 silenced_users = {}
 
-def save_all_data():
-    """دالة مركزية لحفظ كل البيانات المتغيرة"""
-    bot_data['users'] = list(USERS_LIST)
-    bot_data['banned_users'] = list(BANNED_USERS)
-    bot_data['auto_replies'] = AUTO_REPLIES
-    bot_data['daily_reminders'] = DAILY_REMINDERS
-    bot_data['channel_messages'] = CHANNEL_MESSAGES
-    save_data_to_db(bot_data)
+# --- دالة الحفظ المركزية ---
+def save_data():
+    """
+    دالة مساعدة لحفظ الحالة الحالية لـ bot_data في قاعدة البيانات.
+    """
+    db_save(bot_data)
