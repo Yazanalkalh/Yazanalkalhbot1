@@ -1,5 +1,4 @@
 from aiogram import Dispatcher
-
 from .panel import register_panel_handlers
 from .fsm_handlers import register_fsm_handlers
 
