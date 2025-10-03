@@ -1,6 +1,8 @@
 import datetime
 from utils.database import load_db_data, save_db_data
 
+# --- Default Bot Structure ---
+# This is the complete default configuration for the bot.
 DEFAULT_DATA = {
     "users": [],
     "banned_users": [],
@@ -37,24 +39,32 @@ DEFAULT_DATA = {
     }
 }
 
+# --- Live Data Store ---
 bot_data = {}
 start_time = datetime.datetime.now()
 forwarded_message_links = {}
 user_last_message_time = {}
 
 def initialize_data():
+    """Load data from DB and merge with defaults to prevent errors."""
     global bot_data
     db_data = load_db_data()
     
+    # Start with a fresh copy of the default data
     merged_data = DEFAULT_DATA.copy()
-    for key, value in db_data.items():
-        if isinstance(value, dict) and key in merged_data:
-            merged_data[key].update(value)
-        else:
-            merged_data[key] = value
+    
+    # Recursively update the default data with data from the database
+    def update_dict(d, u):
+        for k, v in u.items():
+            if isinstance(v, dict):
+                d[k] = update_dict(d.get(k, {}), v)
+            else:
+                d[k] = v
+        return d
 
-    bot_data = merged_data
-    print("✅ Bot data initialized.")
+    bot_data = update_dict(merged_data, db_data)
+    print("✅ Bot data initialized successfully.")
 
 def save_data():
+    """Save the current state of bot_data to the database."""
     save_db_data(bot_data) 
