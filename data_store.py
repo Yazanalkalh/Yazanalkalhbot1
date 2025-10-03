@@ -1,31 +1,36 @@
 import datetime
-from database import load_all_data, save_all_data as db_save
 
-# القالب الافتراضي الكامل لإعدادات البوت
+# This is the master template for all bot settings.
+# It ensures the bot always has a value to fall back on.
 DEFAULT_SETTINGS = {
+    "_id": "main_bot_config",
     "users": [],
     "banned_users": [],
     "reminders": [
         "🌅 سبحان الله وبحمده، سبحان الله العظيم.",
         "🤲 اللهم أعني على ذكرك وشكرك وحسن عبادتك.",
-        "💎 لا إله إلا الله وحده لا شريك له، له الملك وله الحمد وهو على كل شيء قدير."
     ],
     "channel_messages": [
         "🌙 بسم الله نبدأ يوماً جديداً\n\n💎 قال تعالى: {وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا}",
-        "🌟 تذكير إيماني\n\n📖 قال رسول الله ﷺ: (إن الله جميل يحب الجمال)"
     ],
     "dynamic_replies": {
         "مرحبا": "أهلاً وسهلاً بك!",
         "السلام عليكم": "وعليكم السلام ورحمة الله وبركاته."
     },
     "scheduled_posts": [],
-    "bot_config": {
+    "bot_settings": {
+        "maintenance_mode": False,
+        "maintenance_message": "عذراً، البوت قيد الصيانة حالياً. سنعود قريباً.",
+        "content_protection": False,
+        "slow_mode_seconds": 0,
+        "spam_message_limit": 5,
+        "spam_time_window": 60,
+        "allowed_media_types": ["text"], # Default: only text is allowed
         "channel_id": "",
         "schedule_interval_seconds": 86400,
-        "allow_media": False,
-        "welcome_message": "👋 **أهلاً بك، #name!**\n\nهذا البوت مخصص للتواصل مع فريق القناة. أرسل استفسارك وسيتم الرد عليك.",
-        "reply_message": "✅ **تم استلام رسالتك!** سيقوم الفريق بمراجعتها والرد عليك.",
-        "media_reject_message": "❌ **عذراً،** يُسمح بإرسال الرسائل النصية فقط حالياً."
+        "welcome_message": "👋 **أهلاً بك، #name!**\n\nهذا البوت مخصص للتواصل مع فريق القناة.",
+        "reply_message": "✅ **تم استلام رسالتك!** سيقوم الفريق بمراجعتها.",
+        "media_reject_message": "❌ **عذراً،** هذا النوع من الرسائل غير مسموح به حالياً."
     },
     "ui_config": {
         "date_button_label": "📅 اليوم هجري",
@@ -35,19 +40,17 @@ DEFAULT_SETTINGS = {
     }
 }
 
-# --- تهيئة البيانات عند بدء التشغيل ---
-# هذا هو المتغير الرئيسي الذي سيستخدمه كل البوت
+# Initial load of data
+from database import load_all_data, save_all_data as db_save
 bot_data = load_all_data()
-start_time = datetime.datetime.now()
 
-# متغيرات مؤقتة (لا يتم حفظها في قاعدة البيانات)
+# Global runtime variables (not saved in DB)
+start_time = datetime.datetime.now()
 forwarded_message_links = {}
 user_message_count = {}
 silenced_users = {}
+user_last_message_time = {}
 
-# --- دالة الحفظ المركزية ---
 def save_data():
-    """
-    دالة مساعدة لحفظ الحالة الحالية لـ bot_data في قاعدة البيانات.
-    """
+    """A centralized function to save data."""
     db_save(bot_data)
