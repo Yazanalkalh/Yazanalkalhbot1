@@ -1,4 +1,3 @@
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import data_store
 
@@ -6,25 +5,25 @@ def create_admin_panel() -> InlineKeyboardMarkup:
     """Creates the main admin control panel keyboard."""
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("📝 الردود الديناميكية", "admin_dyn_replies"),
-        InlineKeyboardButton("💭 إدارة التذكيرات", "admin_reminders"),
-        InlineKeyboardButton("📢 منشورات القناة", "admin_channel"),
-        InlineKeyboardButton("🚫 إدارة الحظر", "admin_ban"),
-        InlineKeyboardButton("📤 النشر للجميع", "admin_broadcast"),
-        InlineKeyboardButton("🎨 تخصيص الواجهة", "admin_customize_ui"),
-        InlineKeyboardButton("🛡️ الحماية والأمان", "admin_security"),
-        InlineKeyboardButton("🧠 إدارة الذاكرة", "admin_memory_management"),
-        InlineKeyboardButton("⚙️ إعدادات القناة", "admin_channel_settings"),
-        InlineKeyboardButton("📊 عرض الإحصائيات", "admin_stats"),
-        InlineKeyboardButton("🚀 حالة النشر", "deploy_status"),
-        InlineKeyboardButton("❌ إغلاق", "close_panel")
+        InlineKeyboardButton(text="📝 الردود الديناميكية", callback_data="admin_dyn_replies"),
+        InlineKeyboardButton(text="💭 إدارة التذكيرات", callback_data="admin_reminders"),
+        InlineKeyboardButton(text="📢 منشورات القناة", callback_data="admin_channel"),
+        InlineKeyboardButton(text="🚫 إدارة الحظر", callback_data="admin_ban"),
+        InlineKeyboardButton(text="📤 النشر للجميع", callback_data="admin_broadcast"),
+        InlineKeyboardButton(text="🎨 تخصيص الواجهة", callback_data="admin_customize_ui"),
+        InlineKeyboardButton(text="🛡️ الحماية والأمان", callback_data="admin_security"),
+        InlineKeyboardButton(text="🧠 إدارة الذاكرة", callback_data="admin_memory_management"),
+        InlineKeyboardButton(text="⚙️ إعدادات القناة", callback_data="admin_channel_settings"),
+        InlineKeyboardButton(text="📊 عرض الإحصائيات", callback_data="admin_stats"),
+        InlineKeyboardButton(text="🚀 حالة النشر", callback_data="deploy_status"),
+        InlineKeyboardButton(text="❌ إغلاق", callback_data="close_panel")
     )
     return keyboard
 
 def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
     """Generates specific sub-menus for the admin panel."""
     keyboard = InlineKeyboardMarkup(row_width=2)
-    cfg = data_store.bot_data.get('bot_settings', {})
+    cfg = data_store.bot_data['bot_settings']
     
     buttons_map = {
         "admin_dyn_replies": [("➕ برمجة رد جديد", "add_dyn_reply"), ("📝 عرض الردود", "show_dyn_replies"), ("🗑️ حذف رد", "delete_dyn_reply")],
@@ -49,18 +48,18 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
         "admin_memory_management": [("🗑️ مسح بيانات مستخدم", "clear_user_data"), ("🧹 مسح ذاكرة التباطؤ", "clear_spam_cache")]
     }
     
-    buttons = [InlineKeyboardButton(text, cb) for text, cb in buttons_map.get(menu_type, [])]
+    buttons = [InlineKeyboardButton(text=text, callback_data=cb) for text, cb in buttons_map.get(menu_type, [])]
     keyboard.add(*buttons)
-    keyboard.add(InlineKeyboardButton("🔙 العودة للوحة التحكم", "back_to_main"))
+    keyboard.add(InlineKeyboardButton(text="🔙 العودة للوحة التحكم", callback_data="back_to_main"))
     return keyboard
 
 def back_kb(callback_data: str = "back_to_main") -> InlineKeyboardMarkup:
     """Creates a simple back button keyboard."""
-    return InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 العودة", callback_data))
+    return InlineKeyboardMarkup().add(InlineKeyboardButton(text="🔙 العودة", callback_data=callback_data))
 
 def add_another_kb(add_callback: str, back_callback: str) -> InlineKeyboardMarkup:
     """Creates an 'Add Another' and 'Back' keyboard."""
     return InlineKeyboardMarkup(row_width=2).add(
-        InlineKeyboardButton("➕ إضافة المزيد", add_callback),
-        InlineKeyboardButton("🔙 العودة", back_callback)
-  )
+        InlineKeyboardButton(text="➕ إضافة المزيد", callback_data=add_callback),
+        InlineKeyboardButton(text="🔙 العودة", callback_data=back_callback)
+    )
