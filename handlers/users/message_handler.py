@@ -5,18 +5,15 @@ from keyboards.inline.user_keyboards import create_user_buttons
 import datetime
 from config import ADMIN_CHAT_ID
 
-# --- THIS IS THE CRITICAL FIX ---
 # This filter checks if the message sender is NOT the admin.
 def is_not_admin(message: types.Message):
     return message.from_user.id != ADMIN_CHAT_ID
-# ---------------------------------
 
 async def message_handler(message: types.Message):
     """Handler for all other user messages."""
     user_id = message.from_user.id
     settings = data_store.bot_data['bot_settings']
 
-    # Maintenance Mode Check is handled by the filter now.
     # Ban Check
     if user_id in data_store.bot_data['banned_users']:
         return
@@ -50,8 +47,5 @@ async def message_handler(message: types.Message):
     )
 
 def register_message_handler(dp: Dispatcher):
-    # We apply the new `is_not_admin` filter here.
-    # This handler will now ONLY run for messages from non-admins.
-    dp.register_message_handler(message_handler, is_not_admin, content_types=types.ContentTypes.ANY)
-
-
+    """Registers the handler for user messages."""
+    dp.register_message_handler(message_handler, is_not_admin, content_types=types.ContentTypes.ANY) 
