@@ -276,17 +276,20 @@ async def set_timezone(m: types.Message, s: FSMContext):
 async def remove_media_type(m: types.Message, s: FSMContext):
     media_type = m.text.strip()
     allowed = data_store.bot_data['bot_settings']['allowed_media_types']
-    if media_type in allowed:
+    if media_type in allowed and media_type != 'text': # Prevent removing 'text'
         allowed.remove(media_type)
         data_store.save_data()
         await m.reply(f"✅ تم منع النوع: `{media_type}`", reply_markup=create_admin_panel())
+    elif media_type == 'text':
+        await m.reply("❌ لا يمكن منع الرسائل النصية.")
     else:
-        await m.reply(f"❌ النوع `{media_type}` غير موجود أصلاً.")
+        await m.reply(f"❌ النوع `{media_type}` غير مسموح به أصلاً.")
     await s.finish()
 
 # --- Handler Registration ---
 def register_admin_handlers(dp: Dispatcher):
-    f = lambda msg: msg.from_user.id == ADMIN_CHAT_ID
+    # THE CRITICAL FIX IS HERE
+    f = lambda msg, **kwargs: msg.from_user.id == ADMIN_CHAT_ID
     
     # Main Commands
     dp.register_message_handler(admin_panel_cmd, f, commands=['admin'], state="*")
@@ -294,22 +297,25 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(callbacks_cmd, f, state="*")
     dp.register_message_handler(cancel_cmd, f, commands=['cancel'], state='*')
 
-    # FSM Handlers
+    # FSM Handlers are now registered with the correct filter
     dp.register_message_handler(dyn_reply_keyword, f, state=AdminStates.waiting_for_dyn_reply_keyword)
     dp.register_message_handler(dyn_reply_content, f, content_types=types.ContentTypes.TEXT, state=AdminStates.waiting_for_dyn_reply_content)
     dp.register_message_handler(dyn_reply_delete, f, state=AdminStates.waiting_for_dyn_reply_delete)
     
-    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['reminders'], "✅ تم إضافة التذكير.", True, ("add_reminder", "admin_reminders")), f, state=AdminStates.waiting_for_new_reminder)
-    dp.register_message_handler(lambda m, s: process_delete_by_index(m, s, "reminders", "التذكير", ("delete_reminder", "admin_reminders")), f, state=AdminStates.waiting_for_delete_reminder)
+    dp.register_message_handler(process_text_input, f, state=AdminStates.waiting_for_new_reminder)
+    dp.register_message_handler(process_delete_by_index, f, state=AdminStates.waiting_for_delete_reminder)
 
-    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['channel_messages'], "✅ تم إضافة رسالة القناة.", True, ("add_channel_msg", "admin_channel")), f, state=AdminStates.waiting_for_new_channel_msg)
-    dp.register_message_handler(lambda m, s: process_delete_by_index(m, s, "channel_messages", "الرسالة", ("delete_channel_msg", "admin_channel")), f, state=AdminStates.waiting_for_delete_channel_msg)
+    dp.register_message_handler(process_text_input, f, state=AdminStates.waiting_for_new_channel_msg)
+    dp.register_message_handler(process_delete_by_index, f, state=AdminStates.waiting_for_delete_channel_msg)
     
     async def instant_post_handler(m: types.Message, s: FSMContext):
         channel_id = data_store.bot_data['bot_settings'].get('channel_id')
         if channel_id:
-            await bot.send_message(channel_id, m.text.strip())
-            await m.reply("✅ تم النشر الفوري بنجاح.")
+            try:
+                await bot.send_message(channel_id, m.text.strip())
+                await m.reply("✅ تم النشر الفوري بنجاح.")
+            except Exception as e:
+                await m.reply(f"❌ فشل النشر: {e}")
         else:
             await m.reply("❌ يجب تحديد ID القناة أولاً.")
         await s.finish()
@@ -339,9 +345,13 @@ def register_admin_handlers(dp: Dispatcher):
     async def process_schedule_interval_handler(m: types.Message, s: FSMContext):
         try:
             hours = float(m.text.strip())
-            data_store.bot_data['bot_settings']['schedule_interval_seconds'] = int(hours * 3600)
-            data_store.save_data()
-            await m.reply(f"✅ تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.", reply_markup=create_admin_panel())
+            seconds = int(hours * 3600)
+            if seconds < 60:
+                await m.reply("❌ أقل فترة هي 60 ثانية (0.016 ساعة).")
+            else:
+                data_store.bot_data['bot_settings']['schedule_interval_seconds'] = seconds
+                data_store.save_data()
+                await m.reply(f"✅ تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.", reply_markup=create_admin_panel())
         except ValueError:
             await m.reply("❌ الرجاء إرسال رقم صحيح.")
         await s.finish()
@@ -354,5 +364,3 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','allowed_media_types'],"✅ تم السماح بالنوع: {value}",True), f, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(remove_media_type, f, state=AdminStates.waiting_for_remove_media_type)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','media_reject_message'], "✅ تم تحديث رسالة الرفض."), f, state=AdminStates.waiting_for_media_reject_message)
-
-
