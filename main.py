@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 from aiogram.utils import executor
 from loader import dp
 from handlers import register_all_handlers
