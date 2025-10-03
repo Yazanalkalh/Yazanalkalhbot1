@@ -1,46 +1,69 @@
 import asyncio
 import datetime
-import random
-from loader import bot, dp
-from config import ADMIN_CHAT_ID, CHANNEL_ID
+from loader import bot
 import data_store
+from config import ADMIN_CHAT_ID
 
-async def send_channel_message(custom_message=None):
-    channel = data_store.bot_data.get("channel_id") or CHANNEL_ID
-    if not channel:
-        print("⚠️ النشر التلقائي متوقف: لم يتم تحديد قناة.")
-        return
-
-    message_to_send = custom_message or (random.choice(data_store.CHANNEL_MESSAGES) if data_store.CHANNEL_MESSAGES else None)
-    if not message_to_send:
-        print("⚠️ النشر التلقائي متوقف: لا توجد رسائل للنشر.")
-        return
-
-    try:
-        await bot.send_message(channel, message_to_send)
-        print(f"✅ تم إرسال رسالة تلقائية إلى القناة {channel}")
-    except Exception as e:
-        print(f"❌ فشل إرسال رسالة للقناة {channel}: {e}")
-
-async def scheduled_tasks():
+async def schedule_auto_posts():
+    """المهمة الخلفية لإرسال المنشورات التلقائية للقناة."""
+    print("🔄 Starting auto-post scheduler...")
     while True:
-        interval = data_store.bot_data.get("schedule_interval_seconds", 86400)
+        interval = data_store.bot_data['bot_config'].get('schedule_interval_seconds', 86400)
         await asyncio.sleep(interval)
-        await send_channel_message()
+        
+        channel_id = data_store.bot_data['bot_config'].get('channel_id')
+        messages = data_store.bot_data.get('channel_messages', [])
+        
+        if channel_id and messages:
+            try:
+                await bot.send_message(channel_id, random.choice(messages))
+                print(f"✅ Auto-posted to channel {channel_id}")
+            except Exception as e:
+                print(f"❌ Failed to auto-post to channel: {e}")
 
-async def startup_tasks(dispatcher):
+async def schedule_specific_posts():
+    """المهمة الخلفية لإرسال المنشورات المجدولة المتقدمة."""
+    print("🔄 Starting specific-post scheduler...")
+    while True:
+        await asyncio.sleep(60) # يفحص كل دقيقة
+        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        
+        posts_to_send = []
+        remaining_posts = []
+
+        for post in data_store.bot_data.get("scheduled_posts", []):
+            send_time = datetime.datetime.fromisoformat(post['send_at_iso'])
+            if now >= send_time:
+                posts_to_send.append(post)
+            else:
+                remaining_posts.append(post)
+        
+        if posts_to_send:
+            for post in posts_to_send:
+                try:
+                    await bot.send_message(post['channel_id'], post['text'])
+                    print(f"✅ Sent scheduled post to {post['channel_id']}")
+                except Exception as e:
+                    print(f"❌ Failed to send scheduled post: {e}")
+            
+            # تحديث قائمة المنشورات في قاعدة البيانات
+            data_store.bot_data["scheduled_posts"] = remaining_posts
+            data_store.save_data()
+
+async def startup_tasks(dp):
+    """
+    مجموعة المهام التي تبدأ مع تشغيل البوت.
+    """
+    asyncio.create_task(schedule_auto_posts())
+    asyncio.create_task(schedule_specific_posts())
     try:
         startup_message = (
             "✅ **تم تشغيل البوت بنجاح!**\n\n"
-            "**الحالة:**\n"
-            "- **البوت:** متصل ونشط\n"
-            "- **قاعدة البيانات:** متصلة\n"
-            "- **الخادم:** يعمل وجاهز\n\n"
-            f"**وقت التشغيل:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            "🤖 **الحالة:** متصل ونشط\n"
+            "🌐 **خادم الويب:** يعمل\n"
+            "☁️ **قاعدة البيانات:** متصلة\n"
+            f"⏰ **وقت التشغيل:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         await bot.send_message(ADMIN_CHAT_ID, startup_message)
     except Exception as e:
-        print(f"⚠️ لم يتم إرسال رسالة بدء التشغيل للمشرف: {e}")
-    
-    asyncio.create_task(scheduled_tasks())
-    print("🚀 تم جدولة المهام التلقائية بنجاح.")
+        print(f"⚠️ Could not send startup message to admin: {e}")
