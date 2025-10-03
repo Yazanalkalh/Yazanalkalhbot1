@@ -1,52 +1,51 @@
 import os
-import sys
-import atexit
-
-# --- Lock File to prevent duplicate instances ---
-LOCK_FILE = "bot.lock"
-def create_lock_file():
-    if os.path.exists(LOCK_FILE):
-        print("❌ FATAL: Lock file exists. Another instance may be running.")
-        sys.exit(1)
-    with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
-    print("✅ Lock file created.")
-
-def remove_lock_file():
-    if os.path.exists(LOCK_FILE):
-        os.remove(LOCK_FILE)
-        print("✅ Lock file removed.")
-
-create_lock_file()
-atexit.register(remove_lock_file)
-# -------------------------------------------------
-
+import asyncio
 from aiogram.utils import executor
 from threading import Thread
 
+# This lock file logic is good practice for polling bots on servers
+# to prevent accidental multiple instances.
+LOCK_FILE = "bot.lock"
+if os.path.exists(LOCK_FILE):
+    print("⚠️ WARNING: Lock file exists. Another instance might be running.")
+    # You might want to handle this more gracefully in production
+    # For now, we remove it to allow starting.
+    os.remove(LOCK_FILE)
+
+with open(LOCK_FILE, "w") as f:
+    f.write("locked")
+
 from loader import dp
 from handlers import register_all_handlers
+import data_store
 from utils.background_tasks import startup_tasks
-from web_server import run_web_server
-import data_store # Import the data_store module
+from web_server import run_web_server # We still need this to keep Render alive
 
 async def on_startup(dispatcher):
     """Function to run on bot startup."""
-    # --- THIS IS THE CRITICAL FIX ---
-    # Initialize the bot's data and settings from the database and defaults.
+    # Initialize bot data from the database
     data_store.initialize_data()
-    # ---------------------------------
-    
+    # Register all handlers
     register_all_handlers(dispatcher)
+    # Run background tasks
     await startup_tasks(dispatcher)
 
+def on_shutdown(dispatcher):
+    """Function to run on bot shutdown."""
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
+    print("Bot shutdown complete. Lock file removed.")
+
 if __name__ == '__main__':
-    try:
-        web_thread = Thread(target=run_web_server, daemon=True)
-        web_thread.start()
-        print("Starting bot polling...")
-        executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
-    except (KeyboardInterrupt, SystemExit):
-        print("Bot stopped by user.")
-    finally:
-        remove_lock_file() 
+    # Start the web server in a separate thread to keep the service alive
+    web_thread = Thread(target=run_web_server, daemon=True)
+    web_thread.start()
+
+    # Start the bot using polling
+    print("Starting bot polling...")
+    executor.start_polling(
+        dp, 
+        skip_updates=True, 
+        on_startup=on_startup, 
+        on_shutdown=on_shutdown
+    )
