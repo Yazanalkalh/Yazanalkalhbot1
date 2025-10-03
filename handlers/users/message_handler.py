@@ -1,4 +1,5 @@
 from aiogram import types, Dispatcher
+from aiogram.dispatcher import FSMContext
 import data_store
 from utils.helpers import forward_to_admin
 from keyboards.inline.user_keyboards import create_user_buttons
@@ -6,12 +7,12 @@ import datetime
 from config import ADMIN_CHAT_ID
 from loader import bot
 
-def is_not_admin(message: types.Message):
-    """A filter to ensure the message is not from the admin."""
+def is_regular_user(message: types.Message):
+    """A filter to ensure the message is from a regular user (not admin)."""
     return message.from_user.id != ADMIN_CHAT_ID
 
 async def message_handler(message: types.Message):
-    """Handler for all other user messages."""
+    """Handler for all messages from regular users."""
     user_id = message.from_user.id
     settings = data_store.bot_data['bot_settings']
 
@@ -50,8 +51,7 @@ async def message_handler(message: types.Message):
 def register_message_handler(dp: Dispatcher):
     """
     Registers the handler for user messages.
-    It will only trigger for users who are NOT the admin AND are not in any FSM state.
+    This handler will now ONLY run for messages from non-admins AND who are not in any FSM state.
+    This is the crucial fix to prevent it from interfering with admin commands.
     """
-    # --- THIS IS THE CRITICAL FIX ---
-    # We add state=None to ensure this handler only runs for users not in a conversation.
-    dp.register_message_handler(message_handler, is_not_admin, state=None, content_types=types.ContentTypes.ANY) 
+    dp.register_message_handler(message_handler, is_regular_user, state=None, content_types=types.ContentTypes.ANY)
