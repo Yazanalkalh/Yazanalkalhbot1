@@ -5,9 +5,10 @@ from threading import Thread
 from aiogram.utils import executor
 
 from loader import dp
-from handlers import admin, user
+from handlers import admin, user # Import both handlers
 import data_store
 from utils.tasks import startup_tasks
+import config
 
 # --- Web Server to Keep Bot Alive on Render ---
 app = Flask(__name__)
@@ -26,9 +27,12 @@ async def on_startup(dispatcher):
     # Initialize bot data from database
     data_store.initialize_data()
     
-    # Register all handlers
-    user.register_user_handlers(dispatcher)
+    # --- THIS IS THE CRITICAL FIX ---
+    # Register ADMIN handlers FIRST, so they are checked before user handlers.
     admin.register_admin_handlers(dispatcher)
+    
+    # Register USER handlers SECOND.
+    user.register_user_handlers(dispatcher)
     
     # Run background tasks
     await startup_tasks(dispatcher)
