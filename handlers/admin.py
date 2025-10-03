@@ -6,7 +6,6 @@ from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
 import data_store
 from keyboards.inline import create_admin_panel, get_menu_keyboard, back_kb, add_another_kb
-from utils.helpers import process_klisha
 
 # --- Main Admin Command Handlers ---
 async def admin_panel_cmd(m: types.Message, state: FSMContext):
@@ -306,7 +305,15 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['channel_messages'], "✅ تم إضافة رسالة القناة.", True, ("add_channel_msg", "admin_channel")), f, state=AdminStates.waiting_for_new_channel_msg)
     dp.register_message_handler(lambda m, s: process_delete_by_index(m, s, "channel_messages", "الرسالة", ("delete_channel_msg", "admin_channel")), f, state=AdminStates.waiting_for_delete_channel_msg)
     
-    dp.register_message_handler(lambda m, s: bot.send_message(data_store.bot_data['bot_settings']['channel_id'], m.text.strip()), f, state=AdminStates.waiting_for_instant_channel_post)
+    async def instant_post_handler(m: types.Message, s: FSMContext):
+        channel_id = data_store.bot_data['bot_settings'].get('channel_id')
+        if channel_id:
+            await bot.send_message(channel_id, m.text.strip())
+            await m.reply("✅ تم النشر الفوري بنجاح.")
+        else:
+            await m.reply("❌ يجب تحديد ID القناة أولاً.")
+        await s.finish()
+    dp.register_message_handler(instant_post_handler, f, state=AdminStates.waiting_for_instant_channel_post)
 
     dp.register_message_handler(scheduled_post_text, f, state=AdminStates.waiting_for_scheduled_post_text)
     dp.register_message_handler(scheduled_post_datetime, f, state=AdminStates.waiting_for_scheduled_post_datetime)
@@ -328,7 +335,17 @@ def register_admin_handlers(dp: Dispatcher):
     
     # Channel Settings
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings', 'channel_id'], "✅ تم تحديث ID القناة."), f, state=AdminStates.waiting_for_channel_id)
-    dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'schedule_interval_seconds', "✅ تم تحديث فترة النشر."), f, state=AdminStates.waiting_for_schedule_interval)
+    
+    async def process_schedule_interval_handler(m: types.Message, s: FSMContext):
+        try:
+            hours = float(m.text.strip())
+            data_store.bot_data['bot_settings']['schedule_interval_seconds'] = int(hours * 3600)
+            data_store.save_data()
+            await m.reply(f"✅ تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.", reply_markup=create_admin_panel())
+        except ValueError:
+            await m.reply("❌ الرجاء إرسال رقم صحيح.")
+        await s.finish()
+    dp.register_message_handler(process_schedule_interval_handler, f, state=AdminStates.waiting_for_schedule_interval)
 
     # Security
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'spam_message_limit', "✅ تم تحديث حد الرسائل."), f, state=AdminStates.waiting_for_spam_limit)
@@ -336,4 +353,6 @@ def register_admin_handlers(dp: Dispatcher):
     dp.register_message_handler(lambda m, s: process_numeric_input(m, s, 'slow_mode_seconds', "✅ تم تحديث فترة التباطؤ."), f, state=AdminStates.waiting_for_slow_mode)
     dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','allowed_media_types'],"✅ تم السماح بالنوع: {value}",True), f, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(remove_media_type, f, state=AdminStates.waiting_for_remove_media_type)
-    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','media_reject_message'], "✅ تم تحديث رسالة الرفض."), f, state=AdminStates.waiting_for_media_reject_message) 
+    dp.register_message_handler(lambda m, s: process_text_input(m, s, ['bot_settings','media_reject_message'], "✅ تم تحديث رسالة الرفض."), f, state=AdminStates.waiting_for_media_reject_message)
+
+
