@@ -27,13 +27,15 @@ class AdminStates(StatesGroup):
     # Broadcast state
     waiting_for_broadcast_message = State()
 
-    # UI Customization states
+    # --- THIS IS THE UPDATE ---
+    # UI Customization states are now fully defined
     waiting_for_date_button_label = State()
     waiting_for_time_button_label = State()
     waiting_for_reminder_button_label = State()
     waiting_for_timezone = State()
     waiting_for_welcome_message = State()
     waiting_for_reply_message = State()
+    # --------------------------
 
     # Channel Settings states
     waiting_for_channel_id = State()
@@ -42,4 +44,4 @@ class AdminStates(StatesGroup):
     # Media Settings states (from Security)
     waiting_for_add_media_type = State()
     waiting_for_remove_media_type = State()
-    waiting_for_media_reject_message = State() 
+    waiting_for_media_reject_message = State()
