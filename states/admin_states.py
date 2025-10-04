@@ -42,4 +42,4 @@ class AdminStates(StatesGroup):
     # Media Settings states (from Security)
     waiting_for_add_media_type = State()
     waiting_for_remove_media_type = State()
-    waiting_for_media_reject_message = State()
+    waiting_for_media_reject_message = State() 
