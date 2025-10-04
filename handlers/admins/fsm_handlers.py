@@ -10,7 +10,6 @@ import datetime
 import asyncio
 
 # This file contains all the logic for handling messages once the bot is in a "waiting state" (FSM).
-# Each function here corresponds to a specific state defined in states/admin_states.py.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -26,19 +25,13 @@ async def cancel_cmd(m: types.Message, state: FSMContext):
 # --- Dynamic Replies Handlers ---
 async def dyn_reply_keyword_handler(m: types.Message, state: FSMContext):
     await state.update_data(keyword=m.text.strip())
-    await m.reply("👍 الآن أرسل **المحتوى** للرد (يمكن أن يكون نصًا، صورة، الخ).")
+    await m.reply("👍 الآن أرسل **المحتوى** للرد.")
     await AdminStates.next()
 
 async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
     data = await state.get_data()
     keyword = data['keyword']
-    # Storing message content in a serializable format is complex.
-    # For now, we'll just store the text. Advanced handling can be added later.
-    content = m.text 
-    if not content:
-        await m.reply("❌ المحتوى لا يمكن أن يكون فارغًا. الرجاء إرسال نص.")
-        return
-        
+    content = m.text
     data_store.bot_data.setdefault('dynamic_replies', {})[keyword] = content
     data_store.save_data()
     await m.reply("✅ **تمت برمجة الرد بنجاح!**", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
@@ -125,65 +118,7 @@ async def delete_channel_msg_handler(m: types.Message, state: FSMContext):
         await m.reply("❌ إدخال خاطئ. الرجاء إرسال رقم صحيح.")
     await state.finish()
 
-async def instant_post_handler(m: types.Message, state: FSMContext):
-    channel_id = data_store.bot_data.get('bot_settings', {}).get('channel_id')
-    if channel_id:
-        try:
-            await m.copy_to(channel_id)
-            await m.reply("✅ تم النشر الفوري بنجاح.", reply_markup=create_admin_panel())
-        except Exception as e:
-            await m.reply(f"❌ فشل النشر: {e}")
-    else:
-        await m.reply("❌ يجب تحديد ID القناة أولاً.")
-    await state.finish()
-    
-async def scheduled_post_text_handler(m: types.Message, state: FSMContext):
-    await state.update_data(post_text=m.text)
-    await m.reply("👍 ممتاز. الآن أرسل وقت الإرسال بالتنسيق التالي (بتوقيت UTC):\n`YYYY-MM-DD HH:MM`\nمثال: `2025-12-31 23:59`")
-    await AdminStates.next()
-
-async def scheduled_post_datetime_handler(m: types.Message, state: FSMContext):
-    try:
-        dt_str = m.text.strip()
-        send_at_utc = pytz.utc.localize(datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
-        data = await state.get_data()
-        post_text = data['post_text']
-        channel_id = data_store.bot_data.get('bot_settings', {}).get('channel_id')
-
-        if not channel_id:
-            await m.reply("❌ **خطأ:** يجب تحديد ID القناة أولاً قبل جدولة المنشورات.")
-            await state.finish()
-            return
-
-        new_post = {"text": post_text, "channel_id": channel_id, "send_at_iso": send_at_utc.isoformat()}
-        data_store.bot_data.setdefault("scheduled_posts", []).append(new_post)
-        data_store.save_data()
-        await m.reply(f"✅ **تمت جدولة الرسالة بنجاح!**\nسيتم إرسالها في: `{dt_str}` UTC", reply_markup=add_another_kb("schedule_post", "admin_channel"))
-    except ValueError:
-        await m.reply("❌ **تنسيق التاريخ خاطئ!** الرجاء المحاولة مرة أخرى.")
-    await state.finish()
-
-# --- Broadcast Handler ---
-async def broadcast_handler(m: types.Message, state: FSMContext):
-    succ, fail = 0, 0
-    user_list = data_store.bot_data.get('users', [])
-    if not user_list:
-        await m.reply("⚠️ لا يوجد مستخدمون لإرسال الرسالة إليهم.", reply_markup=create_admin_panel())
-        await state.finish()
-        return
-        
-    await m.reply(f"📤 بدء الإرسال لـ {len(user_list)} مستخدم... قد يستغرق هذا بعض الوقت.")
-    for uid in user_list:
-        try:
-            await m.copy_to(uid)
-            succ += 1
-            await asyncio.sleep(0.05)
-        except Exception:
-            fail += 1
-    await m.reply(f"✅ **اكتمل الإرسال:**\n\n- نجح: {succ}\n- فشل: {fail}", reply_markup=create_admin_panel())
-    await state.finish()
-
-# --- UI Customization Handlers ---
+# --- NEW HANDLERS FOR UI CUSTOMIZATION ---
 async def simple_ui_text_handler(m: types.Message, state: FSMContext, key: str, success_msg: str):
     value = m.text.strip()
     data_store.bot_data.setdefault('ui_config', {})[key] = value
@@ -208,46 +143,7 @@ async def set_timezone_handler(m: types.Message, state: FSMContext):
     except pytz.UnknownTimeZoneError:
         await m.reply("❌ **منطقة زمنية غير صالحة!**\nمثال: `Asia/Aden` أو `Africa/Cairo`")
     await state.finish()
-
-# --- Channel Settings Handlers ---
-async def set_channel_id_handler(m: types.Message, state: FSMContext):
-    channel_id = m.text.strip()
-    data_store.bot_data.setdefault('bot_settings', {})['channel_id'] = channel_id
-    data_store.save_data()
-    await m.reply(f"✅ تم تحديث ID القناة إلى: `{channel_id}`", reply_markup=create_admin_panel())
-    await state.finish()
-
-async def schedule_interval_handler(m: types.Message, state: FSMContext):
-    try:
-        hours = float(m.text.strip())
-        seconds = int(hours * 3600)
-        if seconds < 60:
-            await m.reply("❌ أقل فترة مسموحة هي 60 ثانية (0.016 ساعة).")
-        else:
-            data_store.bot_data.setdefault('bot_settings', {})['schedule_interval_seconds'] = seconds
-            data_store.save_data()
-            await m.reply(f"✅ تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.", reply_markup=create_admin_panel())
-    except ValueError:
-        await m.reply("❌ الرجاء إرسال رقم صحيح (مثال: 12 أو 0.5).")
-    await state.finish()
-
-# --- Media Settings Handlers ---
-async def media_type_handler(m: types.Message, state: FSMContext, add: bool):
-    media_type = m.text.strip().lower()
-    allowed = data_store.bot_data.setdefault('bot_settings', {}).setdefault('allowed_media_types', ['text'])
-    if add:
-        if media_type not in allowed: allowed.append(media_type)
-        await m.reply(f"✅ تم السماح بالنوع: `{media_type}`.", reply_markup=create_admin_panel())
-    else:
-        if media_type == 'text':
-            await m.reply("❌ لا يمكن منع الرسائل النصية.")
-        elif media_type in allowed:
-            allowed.remove(media_type)
-            await m.reply(f"✅ تم منع النوع: `{media_type}`.", reply_markup=create_admin_panel())
-        else:
-            await m.reply(f"❌ النوع `{media_type}` غير مسموح به أصلاً.")
-    data_store.save_data()
-    await state.finish()
+# ------------------------------------------
 
 # --- Handler Registration ---
 def register_fsm_handlers(dp: Dispatcher):
@@ -257,7 +153,7 @@ def register_fsm_handlers(dp: Dispatcher):
     
     # Dynamic Replies
     dp.register_message_handler(dyn_reply_keyword_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_keyword)
-    dp.register_message_handler(dyn_reply_content_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_dyn_reply_content)
+    dp.register_message_handler(dyn_reply_content_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_content)
     dp.register_message_handler(dyn_reply_delete_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_delete)
 
     # Reminders
@@ -271,29 +167,15 @@ def register_fsm_handlers(dp: Dispatcher):
     # Channel Messages
     dp.register_message_handler(add_channel_msg_handler, is_admin, state=AdminStates.waiting_for_new_channel_msg)
     dp.register_message_handler(delete_channel_msg_handler, is_admin, state=AdminStates.waiting_for_delete_channel_msg)
-    dp.register_message_handler(instant_post_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_instant_channel_post)
-    dp.register_message_handler(scheduled_post_text_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_scheduled_post_text)
-    dp.register_message_handler(scheduled_post_datetime_handler, is_admin, state=AdminStates.waiting_for_scheduled_post_datetime)
 
-    # Broadcast
-    dp.register_message_handler(broadcast_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_broadcast_message)
-
-    # --- THIS IS THE FINAL FIX ---
-    # The lambda functions are now correctly defined to accept both 'm' (message) and 's' (state)
-    
-    # UI Customization
-    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'date_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_date_button_label)
-    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'time_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_time_button_label)
-    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'reminder_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_reminder_button_label)
+    # --- THIS IS THE UPDATE ---
+    # Registering all the new handlers for UI customization
+    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'date_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_date_button_label)
+    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'time_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_time_button_label)
+    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'reminder_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_reminder_button_label)
     dp.register_message_handler(set_timezone_handler, is_admin, state=AdminStates.waiting_for_timezone)
-    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'welcome_message', "✅ تم تحديث رسالة البدء."), is_admin, state=AdminStates.waiting_for_welcome_message)
-    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'reply_message', "✅ تم تحديث رسالة الرد."), is_admin, state=AdminStates.waiting_for_reply_message)
-    
-    # Channel Settings
-    dp.register_message_handler(set_channel_id_handler, is_admin, state=AdminStates.waiting_for_channel_id)
-    dp.register_message_handler(schedule_interval_handler, is_admin, state=AdminStates.waiting_for_schedule_interval)
+    dp.register_message_handler(lambda m,s: simple_settings_text_handler(m, s, 'welcome_message', "✅ تم تحديث رسالة البدء."), is_admin, state=AdminStates.waiting_for_welcome_message)
+    dp.register_message_handler(lambda m,s: simple_settings_text_handler(m, s, 'reply_message', "✅ تم تحديث رسالة الرد."), is_admin, state=AdminStates.waiting_for_reply_message)
+    # --------------------------
 
-    # Media Settings
-    dp.register_message_handler(lambda m, s: media_type_handler(m, s, True), is_admin, state=AdminStates.waiting_for_add_media_type)
-    dp.register_message_handler(lambda m, s: media_type_handler(m, s, False), is_admin, state=AdminStates.waiting_for_remove_media_type)
-    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, state=AdminStates.waiting_for_media_reject_message)
+
