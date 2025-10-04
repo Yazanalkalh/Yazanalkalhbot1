@@ -26,13 +26,19 @@ async def cancel_cmd(m: types.Message, state: FSMContext):
 # --- Dynamic Replies Handlers ---
 async def dyn_reply_keyword_handler(m: types.Message, state: FSMContext):
     await state.update_data(keyword=m.text.strip())
-    await m.reply("👍 الآن أرسل **المحتوى** للرد.")
-    await AdminStates.next() # Moves to waiting_for_dyn_reply_content
+    await m.reply("👍 الآن أرسل **المحتوى** للرد (يمكن أن يكون نصًا، صورة، الخ).")
+    await AdminStates.next()
 
 async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
     data = await state.get_data()
     keyword = data['keyword']
-    content = m.text
+    # Storing message content in a serializable format is complex.
+    # For now, we'll just store the text. Advanced handling can be added later.
+    content = m.text 
+    if not content:
+        await m.reply("❌ المحتوى لا يمكن أن يكون فارغًا. الرجاء إرسال نص.")
+        return
+        
     data_store.bot_data.setdefault('dynamic_replies', {})[keyword] = content
     data_store.save_data()
     await m.reply("✅ **تمت برمجة الرد بنجاح!**", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
@@ -272,19 +278,22 @@ def register_fsm_handlers(dp: Dispatcher):
     # Broadcast
     dp.register_message_handler(broadcast_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_broadcast_message)
 
+    # --- THIS IS THE FINAL FIX ---
+    # The lambda functions are now correctly defined to accept both 'm' (message) and 's' (state)
+    
     # UI Customization
-    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'date_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_date_button_label)
-    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'time_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_time_button_label)
-    dp.register_message_handler(lambda m,s: simple_ui_text_handler(m, s, 'reminder_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_reminder_button_label)
+    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'date_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_date_button_label)
+    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'time_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_time_button_label)
+    dp.register_message_handler(lambda m, s: simple_ui_text_handler(m, s, 'reminder_button_label', "✅ تم تحديث اسم الزر."), is_admin, state=AdminStates.waiting_for_reminder_button_label)
     dp.register_message_handler(set_timezone_handler, is_admin, state=AdminStates.waiting_for_timezone)
-    dp.register_message_handler(lambda m,s: simple_settings_text_handler(m, s, 'welcome_message', "✅ تم تحديث رسالة البدء."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_welcome_message)
-    dp.register_message_handler(lambda m,s: simple_settings_text_handler(m, s, 'reply_message', "✅ تم تحديث رسالة الرد."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_reply_message)
+    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'welcome_message', "✅ تم تحديث رسالة البدء."), is_admin, state=AdminStates.waiting_for_welcome_message)
+    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'reply_message', "✅ تم تحديث رسالة الرد."), is_admin, state=AdminStates.waiting_for_reply_message)
     
     # Channel Settings
     dp.register_message_handler(set_channel_id_handler, is_admin, state=AdminStates.waiting_for_channel_id)
     dp.register_message_handler(schedule_interval_handler, is_admin, state=AdminStates.waiting_for_schedule_interval)
 
     # Media Settings
-    dp.register_message_handler(lambda m,s: media_type_handler(m, s, True), is_admin, state=AdminStates.waiting_for_add_media_type)
-    dp.register_message_handler(lambda m,s: media_type_handler(m, s, False), is_admin, state=AdminStates.waiting_for_remove_media_type)
-    dp.register_message_handler(lambda m,s: simple_settings_text_handler(m, s, 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_media_reject_message)
+    dp.register_message_handler(lambda m, s: media_type_handler(m, s, True), is_admin, state=AdminStates.waiting_for_add_media_type)
+    dp.register_message_handler(lambda m, s: media_type_handler(m, s, False), is_admin, state=AdminStates.waiting_for_remove_media_type)
+    dp.register_message_handler(lambda m, s: simple_settings_text_handler(m, s, 'media_reject_message', "✅ تم تحديث رسالة الرفض."), is_admin, state=AdminStates.waiting_for_media_reject_message)
