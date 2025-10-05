@@ -7,8 +7,8 @@ import data_store
 from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboard, back_kb
 import datetime
 
-# This is the Golden Master version of the panel file.
-# It contains the complete logic for handling all button presses and directing them to the correct state.
+# This is the upgraded version of the panel file.
+# It now understands the new bulk import button callbacks.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -98,8 +98,14 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     prompts = { 
         "add_dyn_reply": ("📝 أرسل **الكلمة المفتاحية**:", AdminStates.waiting_for_dyn_reply_keyword), 
         "delete_dyn_reply": ("🗑️ أرسل الكلمة المفتاحية للحذف:", AdminStates.waiting_for_dyn_reply_delete), 
+        # --- NEW ADDITION 1 ---
+        "import_dyn_replies": ("📥 أرسل الملف النصي (.txt) الخاص بالردود:", AdminStates.waiting_for_dyn_replies_file),
+        
         "add_reminder": ("💭 أرسل نص التذكير:", AdminStates.waiting_for_new_reminder), 
         "delete_reminder": ("🗑️ أرسل رقم التذكير للحذف:", AdminStates.waiting_for_delete_reminder), 
+        # --- NEW ADDITION 2 ---
+        "import_reminders": ("📥 أرسل الملف النصي (.txt) الخاص بالتذكيرات:", AdminStates.waiting_for_reminders_file),
+        
         "add_channel_msg": ("➕ أرسل نص الرسالة التلقائية:", AdminStates.waiting_for_new_channel_msg), 
         "delete_channel_msg": ("🗑️ أرسل رقم الرسالة للحذف:", AdminStates.waiting_for_delete_channel_msg), 
         "instant_channel_post": ("📤 أرسل المحتوى للنشر الفوري:", AdminStates.waiting_for_instant_channel_post), 
@@ -118,12 +124,10 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         "add_media_type": ("➕ أرسل نوع الوسائط (photo, video...):", AdminStates.waiting_for_add_media_type), 
         "remove_media_type": ("➖ أرسل نوع الوسائط للمنع:", AdminStates.waiting_for_remove_media_type), 
         "edit_media_reject_message": ("✍️ أرسل رسالة الرفض الجديدة:", AdminStates.waiting_for_media_reject_message),
-        # --- THIS IS THE UPDATE ---
         "set_spam_limit": ("🔢 أرسل حد الرسائل (مثال: 5):", AdminStates.waiting_for_spam_limit),
         "set_spam_window": ("⏱️ أرسل الفترة بالثواني (مثال: 60):", AdminStates.waiting_for_spam_window),
         "set_slow_mode": ("⏳ أرسل فترة التباطؤ بالثواني (مثال: 5):", AdminStates.waiting_for_slow_mode),
         "clear_user_data": ("🗑️ أرسل ID المستخدم لمسح بياناته:", AdminStates.waiting_for_clear_user_id)
-        # ---------------------------
     }
     if d in prompts:
         prompt_text, state_obj = prompts[d]
