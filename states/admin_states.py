@@ -1,18 +1,22 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# This is the Golden Master version of the states file.
-# It contains a definitive list of every possible state the admin can be in.
+# This is the upgraded version of the states file.
+# It now includes the new states for the bulk import feature.
 
 class AdminStates(StatesGroup):
     # Dynamic Replies states
     waiting_for_dyn_reply_keyword = State()
     waiting_for_dyn_reply_content = State()
     waiting_for_dyn_reply_delete = State()
-    
+    # --- NEW ADDITION 1 ---
+    waiting_for_dyn_replies_file = State()
+
     # Reminders states
     waiting_for_new_reminder = State()
     waiting_for_delete_reminder = State()
-    
+    # --- NEW ADDITION 2 ---
+    waiting_for_reminders_file = State()
+
     # Ban Management states
     waiting_for_ban_id = State()
     waiting_for_unban_id = State()
@@ -21,7 +25,7 @@ class AdminStates(StatesGroup):
     waiting_for_new_channel_msg = State()
     waiting_for_delete_channel_msg = State()
     waiting_for_instant_channel_post = State()
-    waiting_for_scheduled_post_content = State() # Renamed for clarity
+    waiting_for_scheduled_post_content = State()
     waiting_for_scheduled_post_datetime = State()
 
     # Broadcast state
