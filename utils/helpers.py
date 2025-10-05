@@ -16,11 +16,10 @@ def get_hijri_date_str():
     """
     try:
         tz_name = data_store.bot_data.get('ui_config', {}).get('timezone', 'Asia/Riyadh')
-        # NEW: Alias dictionary to handle common variations
-        tz_aliases = { "Asia/Sana'a": "Asia/Sanaa" }
-        corrected_tz_name = tz_aliases.get(tz_name, tz_name)
-        user_tz = pytz.timezone(corrected_tz_name)
+        # The official timezone is now stored, so we use it directly.
+        user_tz = pytz.timezone(tz_name)
     except pytz.UnknownTimeZoneError:
+        # Fallback if a somehow invalid name is stored.
         user_tz = pytz.timezone('Asia/Riyadh')
 
     now_in_user_tz = datetime.datetime.now(user_tz)
@@ -38,28 +37,26 @@ def get_hijri_date_str():
 
 def get_live_time_str():
     """
-    UPGRADED: Returns a formatted time string and translates common city names into Arabic.
+    UPGRADED: Returns a formatted time string and translates official city names into common Arabic names.
     """
     try:
         tz_name = data_store.bot_data.get('ui_config', {}).get('timezone', 'Asia/Riyadh')
-        # NEW: Alias dictionary to handle common variations
-        tz_aliases = { "Asia/Sana'a": "Asia/Sanaa" }
-        corrected_tz_name = tz_aliases.get(tz_name, tz_name)
-        user_tz = pytz.timezone(corrected_tz_name)
-        location_name_en = corrected_tz_name.split('/')[-1].replace('_', ' ')
+        user_tz = pytz.timezone(tz_name)
+        # Get the official English location name from the stored timezone string
+        location_name_en = tz_name.split('/')[-1].replace('_', ' ')
     except pytz.UnknownTimeZoneError:
         user_tz = pytz.timezone('Asia/Riyadh')
         location_name_en = "Riyadh"
 
-    # UPGRADED: Translation dictionary now includes the official name 'Sanaa'
+    # UPGRADED: Translation dictionary now translates the official name (Aden) to the desired name (صنعاء)
     translation_dict = {
         "Riyadh": "الرياض",
-        "Aden": "عدن",
-        "Sanaa": "صنعاء", # The official key for translation
+        "Aden": "صنعاء", # Translate the official timezone city to the desired display city
         "Cairo": "القاهرة",
         "Dubai": "دبي",
         "Mecca": "مكة المكرمة"
     }
+    # Look up the translation. If not found, use the English name as a fallback.
     location_name_ar = translation_dict.get(location_name_en, location_name_en)
 
     now = datetime.datetime.now(user_tz)
