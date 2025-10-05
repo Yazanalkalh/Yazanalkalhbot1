@@ -4,7 +4,7 @@ from loader import bot
 from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
 import data_store
-# NEW: We now import the specific, upgraded database functions
+# We now import the specific, upgraded database functions
 from utils.database import add_content_to_library, add_scheduled_post
 from keyboards.inline.admin_keyboards import create_admin_panel, add_another_kb
 import pytz
@@ -12,7 +12,7 @@ import datetime
 import asyncio
 
 # This file contains the complete logic for all FSM states.
-# The scheduling functions have been upgraded to use the new Content Library.
+# The scheduling functions have been upgraded to be timezone-aware.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -136,8 +136,7 @@ async def instant_post_handler(m: types.Message, state: FSMContext):
 
 async def scheduled_post_content_handler(m: types.Message, state: FSMContext):
     """
-    UPGRADED: This function now understands multiple content types (text, sticker, photo).
-    It saves the content type and the content value (text or file_id) to the state.
+    UPGRADED: This function now understands multiple content types and asks for LOCAL time.
     """
     content_type = None
     content_value = None
@@ -150,7 +149,7 @@ async def scheduled_post_content_handler(m: types.Message, state: FSMContext):
         content_value = m.sticker.file_id
     elif m.photo:
         content_type = "photo"
-        content_value = m.photo[-1].file_id # Get the highest resolution photo
+        content_value = m.photo[-1].file_id
     else:
         await m.reply("❌ نوع المحتوى هذا غير مدعوم للجدولة حاليًا. الرجاء إرسال نص، ملصق، أو صورة.")
         return
@@ -159,17 +158,33 @@ async def scheduled_post_content_handler(m: types.Message, state: FSMContext):
         post_content_type=content_type,
         post_content_value=content_value
     )
-    await m.reply("👍 ممتاز. الآن أرسل وقت الإرسال بالتنسيق التالي (بتوقيت UTC):\n`YYYY-MM-DD HH:MM`\nمثال: `2025-12-31 23:59`")
-    await AdminStates.next() # Moves to waiting_for_scheduled_post_datetime
+    
+    # Get the admin's timezone to display in the prompt message
+    tz_name = data_store.bot_data.get('ui_config', {}).get('timezone', 'Asia/Riyadh') # Fallback to Riyadh
+    await m.reply(f"👍 ممتاز. الآن أرسل وقت الإرسال بالتنسيق التالي (بتوقيتك المحلي: {tz_name}):\n`YYYY-MM-DD HH:MM`\nمثال: `2025-12-31 23:59`")
+    await AdminStates.next()
 
 async def scheduled_post_datetime_handler(m: types.Message, state: FSMContext):
     """
-    UPGRADED: This function now talks to the "Warehouse Manager" (database.py).
-    It adds the content to the library and then schedules a post using the content's reference ID.
+    UPGRADED: This function now acts as a "Smart Assistant".
+    It understands local time, converts it to UTC, and then schedules the post.
     """
     try:
         dt_str = m.text.strip()
-        send_at_utc = pytz.utc.localize(datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
+        
+        # 1. Get the admin's local timezone from settings
+        try:
+            tz_name = data_store.bot_data.get('ui_config', {}).get('timezone', 'Asia/Riyadh')
+            local_tz = pytz.timezone(tz_name)
+        except pytz.UnknownTimeZoneError:
+            await m.reply(f"⚠️ المنطقة الزمنية '{tz_name}' غير صالحة. سيتم استخدام UTC كافتراضي.")
+            local_tz = pytz.utc
+
+        # 2. Convert the "naive" local time string from the admin to a "timezone-aware" datetime object
+        local_dt = local_tz.localize(datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
+        
+        # 3. Translate the local datetime object to the universal UTC time for storage
+        send_at_utc = local_dt.astimezone(pytz.utc)
         
         data = await state.get_data()
         content_type = data.get('post_content_type')
@@ -181,16 +196,16 @@ async def scheduled_post_datetime_handler(m: types.Message, state: FSMContext):
             await state.finish()
             return
 
-        # 1. Add content to the library and get its unique ID
+        # 4. Add content to the library (if not exists) and get its reference ID
         content_id = add_content_to_library(content_type=content_type, content_value=content_value)
 
-        # 2. Schedule the post using the content ID
+        # 5. Schedule the post using the content ID and the translated UTC time
         add_scheduled_post(content_id=content_id, channel_id=channel_id, send_at_utc=send_at_utc)
 
-        await m.reply(f"✅ **تمت جدولة المحتوى بنجاح!**\nسيتم إرساله في: `{dt_str}` UTC", reply_markup=add_another_kb("schedule_post", "admin_channel"))
+        await m.reply(f"✅ **تمت جدولة المحتوى بنجاح!**\nسيتم إرساله في: `{dt_str}` (بتوقيتك المحلي)", reply_markup=add_another_kb("schedule_post", "admin_channel"))
     
     except ValueError:
-        await m.reply("❌ **تنسيق التاريخ خاطئ!** الرجاء المحاولة مرة أخرى.")
+        await m.reply("❌ **تنسيق التاريخ خاطئ!** الرجاء استخدام `YYYY-MM-DD HH:MM`.")
     except Exception as e:
         await m.reply(f"❌ حدث خطأ غير متوقع: {e}")
     
@@ -198,7 +213,6 @@ async def scheduled_post_datetime_handler(m: types.Message, state: FSMContext):
 
 # --- Other Handlers (Broadcast, UI, etc. are unchanged) ---
 async def broadcast_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     succ, fail = 0, 0
     user_list = data_store.bot_data.get('users', [])
     if not user_list:
@@ -211,13 +225,12 @@ async def broadcast_handler(m: types.Message, state: FSMContext):
             await m.copy_to(uid)
             succ += 1
             await asyncio.sleep(0.05)
-        except Exception:
+        except:
             fail += 1
     await m.reply(f"✅ **اكتمل الإرسال:**\n\n- نجح: {succ}\n- فشل: {fail}", reply_markup=create_admin_panel())
     await state.finish()
 
 async def date_button_label_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text.strip()
     data_store.bot_data.setdefault('ui_config', {})['date_button_label'] = value
     data_store.save_data()
@@ -225,7 +238,6 @@ async def date_button_label_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def time_button_label_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text.strip()
     data_store.bot_data.setdefault('ui_config', {})['time_button_label'] = value
     data_store.save_data()
@@ -233,7 +245,6 @@ async def time_button_label_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def reminder_button_label_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text.strip()
     data_store.bot_data.setdefault('ui_config', {})['reminder_button_label'] = value
     data_store.save_data()
@@ -241,7 +252,6 @@ async def reminder_button_label_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def welcome_message_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text
     data_store.bot_data.setdefault('bot_settings', {})['welcome_message'] = value
     data_store.save_data()
@@ -249,7 +259,6 @@ async def welcome_message_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def reply_message_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text
     data_store.bot_data.setdefault('bot_settings', {})['reply_message'] = value
     data_store.save_data()
@@ -257,7 +266,6 @@ async def reply_message_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def set_timezone_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     tz_name = m.text.strip()
     try:
         pytz.timezone(tz_name)
@@ -265,11 +273,10 @@ async def set_timezone_handler(m: types.Message, state: FSMContext):
         data_store.save_data()
         await m.reply(f"✅ تم تحديث المنطقة الزمنية إلى: `{tz_name}`", reply_markup=create_admin_panel())
     except pytz.UnknownTimeZoneError:
-        await m.reply("❌ **منطقة زمنية غير صالحة!**\nمثال: `Asia/Aden` أو `Africa/Cairo`")
+        await m.reply("❌ **منطقة زمنية غير صالحة!**\nمثال: `Asia/Riyadh`")
     await state.finish()
 
 async def set_channel_id_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     channel_id = m.text.strip()
     data_store.bot_data.setdefault('bot_settings', {})['channel_id'] = channel_id
     data_store.save_data()
@@ -277,22 +284,20 @@ async def set_channel_id_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def schedule_interval_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     try:
         hours = float(m.text.strip())
         seconds = int(hours * 3600)
         if seconds < 60:
-            await m.reply("❌ أقل فترة مسموحة هي 60 ثانية (0.016 ساعة).")
+            await m.reply("❌ أقل فترة مسموحة هي 60 ثانية.")
         else:
             data_store.bot_data.setdefault('bot_settings', {})['schedule_interval_seconds'] = seconds
             data_store.save_data()
             await m.reply(f"✅ تم تحديث فترة النشر التلقائي إلى كل {hours} ساعة.", reply_markup=create_admin_panel())
     except ValueError:
-        await m.reply("❌ الرجاء إرسال رقم صحيح (مثال: 12 أو 0.5).")
+        await m.reply("❌ الرجاء إرسال رقم صحيح.")
     await state.finish()
 
 async def add_media_type_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     media_type = m.text.strip().lower()
     allowed = data_store.bot_data.setdefault('bot_settings', {}).setdefault('allowed_media_types', ['text'])
     if media_type not in allowed:
@@ -302,7 +307,6 @@ async def add_media_type_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def remove_media_type_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     media_type = m.text.strip().lower()
     allowed = data_store.bot_data.setdefault('bot_settings', {}).setdefault('allowed_media_types', ['text'])
     if media_type == 'text':
@@ -316,7 +320,6 @@ async def remove_media_type_handler(m: types.Message, state: FSMContext):
     await state.finish()
 
 async def media_reject_message_handler(m: types.Message, state: FSMContext):
-    # This function remains unchanged
     value = m.text
     data_store.bot_data.setdefault('bot_settings', {})['media_reject_message'] = value
     data_store.save_data()
@@ -347,7 +350,6 @@ def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(instant_post_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_instant_channel_post)
     
     # UPGRADED: Scheduled Post Handlers Registration
-    # Note: scheduled_post_text_handler is renamed to scheduled_post_content_handler
     dp.register_message_handler(scheduled_post_content_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_scheduled_post_text)
     dp.register_message_handler(scheduled_post_datetime_handler, is_admin, state=AdminStates.waiting_for_scheduled_post_datetime)
 
@@ -370,5 +372,3 @@ def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(add_media_type_handler, is_admin, state=AdminStates.waiting_for_add_media_type)
     dp.register_message_handler(remove_media_type_handler, is_admin, state=AdminStates.waiting_for_remove_media_type)
     dp.register_message_handler(media_reject_message_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_media_reject_message)
-
-
