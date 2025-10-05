@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# This is the Golden Master version of the admin keyboards file.
-# It contains a definitive list of every button in the control panel.
+# This is the upgraded version of the admin keyboards file.
+# It now includes the new "Bulk Import" buttons for both replies and reminders.
 
 def create_admin_panel() -> InlineKeyboardMarkup:
     """Creates the main admin control panel keyboard."""
@@ -30,12 +30,16 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
         "admin_dyn_replies": [
             ("➕ برمجة رد جديد", "add_dyn_reply"), 
             ("📝 عرض الردود", "show_dyn_replies"), 
-            ("🗑️ حذف رد", "delete_dyn_reply")
+            ("🗑️ حذف رد", "delete_dyn_reply"),
+            # --- NEW ADDITION 1 ---
+            ("📥 استيراد ردود دفعة واحدة", "import_dyn_replies")
         ],
         "admin_reminders": [
             ("➕ إضافة تذكير", "add_reminder"), 
             ("📝 عرض التذكيرات", "show_reminders"), 
-            ("🗑️ حذف تذكير", "delete_reminder")
+            ("🗑️ حذف تذكير", "delete_reminder"),
+            # --- NEW ADDITION 2 ---
+            ("📥 استيراد تذكيرات دفعة واحدة", "import_reminders")
         ],
         "admin_channel": [
             ("➕ إضافة رسالة تلقائية", "add_channel_msg"), 
@@ -65,8 +69,6 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
             ("👋 تعديل رسالة البدء", "edit_welcome_msg"), 
             ("💬 تعديل رسالة الرد", "edit_reply_msg")
         ],
-        # --- THIS IS THE UPDATE ---
-        # Added all security sub-menus for completeness
         "admin_security": [
             ("🖼️ إدارة الوسائط", "media_settings"),
             ("🔧 منع التكرار (Spam)", "spam_settings"),
@@ -84,14 +86,20 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
         "slow_mode_settings": [
             ("⏳ تعديل فترة التباطؤ", "set_slow_mode")
         ],
-        # ---------------------------
         "admin_memory_management": [
             ("🗑️ مسح بيانات مستخدم", "clear_user_data")
         ]
     }
     
     buttons = [InlineKeyboardButton(text=text, callback_data=cb) for text, cb in buttons_map.get(menu_type, [])]
-    keyboard.add(*buttons)
+    
+    # Arrange buttons neatly in 2x2 grids if there are 4
+    if menu_type in ["admin_dyn_replies", "admin_reminders"]:
+        keyboard.row_width = 2
+        keyboard.add(*buttons)
+    else:
+        keyboard.add(*buttons)
+        
     keyboard.add(InlineKeyboardButton(text="🔙 العودة للوحة التحكم", callback_data="back_to_main"))
     return keyboard
 
