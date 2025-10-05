@@ -7,9 +7,8 @@ import data_store
 from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboard, back_kb
 import datetime
 
-# This file handles the main /admin command and all callback queries (button presses)
-# that DO NOT require waiting for a subsequent message from the admin.
-# Its main job is to display menus and set the correct state for the FSM handlers.
+# This is the Golden Master version of the panel file.
+# It contains the complete logic for handling all button presses and directing them to the correct state.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -58,7 +57,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         status_text = f"🚀 **حالة النشر:**\n\n✅ نشط ومستقر\n⏰ مدة التشغيل: {str(uptime).split('.')[0]}"
         await cq.message.edit_text(status_text, reply_markup=back_kb()); return
 
-    # Direct action for the new "Test Channel" button
+    # Direct action for the "Test Channel" button
     if d == "test_channel":
         channel_id = data_store.bot_data.get('bot_settings', {}).get('channel_id')
         if channel_id:
@@ -72,18 +71,30 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         return
 
     # Displaying sub-menus
-    menus = { "admin_dyn_replies": "📝 **الردود الديناميكية**", "admin_reminders": "💭 **إدارة التذكيرات**", "admin_channel": "📢 **منشورات القناة**", "admin_ban": "🚫 **إدارة الحظر**", "admin_broadcast": f"📤 **النشر للجميع**", "admin_customize_ui": "🎨 **تخصيص الواجهة**", "admin_security": "🛡️ **الحماية والأمان**", "admin_memory_management": "🧠 **إدارة الذاكرة**", "admin_channel_settings": "⚙️ **إعدادات القناة**", "media_settings": f"🖼️ **إدارة الوسائط**" }
+    menus = {
+        "admin_dyn_replies": "📝 **الردود الديناميكية**", "admin_reminders": "💭 **إدارة التذكيرات**",
+        "admin_channel": "📢 **منشورات القناة**", "admin_ban": "🚫 **إدارة الحظر**",
+        "admin_broadcast": "📤 **النشر للجميع**", "admin_customize_ui": "🎨 **تخصيص الواجهة**",
+        "admin_security": "🛡️ **الحماية والأمان**", "admin_memory_management": "🧠 **إدارة الذاكرة**",
+        "admin_channel_settings": "⚙️ **إعدادات القناة**", "media_settings": "🖼️ **إدارة الوسائط**",
+        "spam_settings": "🔧 **منع التكرار (Spam)**", "slow_mode_settings": "⏳ **التباطؤ (Slow Mode)**"
+    }
     if d in menus:
         await cq.message.edit_text(f"{menus[d]}\n\nاختر الإجراء:", reply_markup=get_menu_keyboard(d)); return
 
     # Displaying lists of items
-    lists = { "show_dyn_replies": ("📝 **الردود المبرمجة:**", "admin_dyn_replies", [f"▫️ `{k}`" for k in data_store.bot_data.get('dynamic_replies', {})]), "show_reminders": ("💭 **التذكيرات:**", "admin_reminders", [f"{i+1}. {r[:40]}..." for i, r in enumerate(data_store.bot_data.get('reminders', []))]), "show_channel_msgs": ("📢 **الرسائل التلقائية:**", "admin_channel", [f"{i+1}. {m[:40]}..." for i, m in enumerate(data_store.bot_data.get('channel_messages', []))]), "show_banned": ("🚫 **المحظورون:**", "admin_ban", [f"`{uid}`" for uid in data_store.bot_data.get('banned_users', [])]) }
+    lists = {
+        "show_dyn_replies": ("📝 **الردود المبرمجة:**", "admin_dyn_replies", [f"▫️ `{k}`" for k in data_store.bot_data.get('dynamic_replies', {})]),
+        "show_reminders": ("💭 **التذكيرات:**", "admin_reminders", [f"{i+1}. {r[:40]}..." for i, r in enumerate(data_store.bot_data.get('reminders', []))]),
+        "show_channel_msgs": ("📢 **الرسائل التلقائية:**", "admin_channel", [f"{i+1}. {m[:40]}..." for i, m in enumerate(data_store.bot_data.get('channel_messages', []))]),
+        "show_banned": ("🚫 **المحظورون:**", "admin_ban", [f"`{uid}`" for uid in data_store.bot_data.get('banned_users', [])])
+    }
     if d in lists:
         title, back_cb, items = lists[d]
         text = title + "\n\n" + ("\n".join(items) if items else "لا يوجد شيء لعرضه.")
         await cq.message.edit_text(text, reply_markup=back_kb(back_cb)); return
 
-    # Setting the state to wait for user input
+    # Setting the state to wait for user input (This is the master list of all state-setting triggers)
     prompts = { 
         "add_dyn_reply": ("📝 أرسل **الكلمة المفتاحية**:", AdminStates.waiting_for_dyn_reply_keyword), 
         "delete_dyn_reply": ("🗑️ أرسل الكلمة المفتاحية للحذف:", AdminStates.waiting_for_dyn_reply_delete), 
@@ -91,22 +102,28 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         "delete_reminder": ("🗑️ أرسل رقم التذكير للحذف:", AdminStates.waiting_for_delete_reminder), 
         "add_channel_msg": ("➕ أرسل نص الرسالة التلقائية:", AdminStates.waiting_for_new_channel_msg), 
         "delete_channel_msg": ("🗑️ أرسل رقم الرسالة للحذف:", AdminStates.waiting_for_delete_channel_msg), 
-        "instant_channel_post": ("📤 أرسل الرسالة للنشر الفوري:", AdminStates.waiting_for_instant_channel_post), 
-        "schedule_post": ("⏰ أرسل **نص الرسالة** للجدولة:", AdminStates.waiting_for_scheduled_post_text), 
+        "instant_channel_post": ("📤 أرسل المحتوى للنشر الفوري:", AdminStates.waiting_for_instant_channel_post), 
+        "schedule_post": ("⏰ أرسل **المحتوى** (نص، صورة، ملصق) للجدولة:", AdminStates.waiting_for_scheduled_post_content), 
         "ban_user": ("🚫 أرسل ID المستخدم للحظر:", AdminStates.waiting_for_ban_id), 
         "unban_user": ("✅ أرسل ID المستخدم لإلغاء الحظر:", AdminStates.waiting_for_unban_id), 
         "send_broadcast": ("📤 أرسل رسالتك للجميع:", AdminStates.waiting_for_broadcast_message), 
         "edit_date_button": ("✏️ أرسل الاسم الجديد لزر التاريخ:", AdminStates.waiting_for_date_button_label), 
         "edit_time_button": ("✏️ أرسل الاسم الجديد لزر الساعة:", AdminStates.waiting_for_time_button_label), 
         "edit_reminder_button": ("✏️ أرسل الاسم الجديد لزر التذكير:", AdminStates.waiting_for_reminder_button_label), 
-        "set_timezone": ("🌍 أرسل المنطقة الزمنية (مثال: Asia/Aden):", AdminStates.waiting_for_timezone), 
-        "edit_welcome_msg": ("👋 أرسل نص الترحيب الجديد (استخدم #name لاسم المستخدم):", AdminStates.waiting_for_welcome_message), 
+        "set_timezone": ("🌍 أرسل المنطقة الزمنية (مثال: Asia/Riyadh):", AdminStates.waiting_for_timezone), 
+        "edit_welcome_msg": ("👋 أرسل نص الترحيب الجديد:", AdminStates.waiting_for_welcome_message), 
         "edit_reply_msg": ("💬 أرسل نص الرد التلقائي الجديد:", AdminStates.waiting_for_reply_message), 
         "set_channel_id": ("🆔 أرسل ID القناة الجديد (مع @ أو -):", AdminStates.waiting_for_channel_id), 
         "set_schedule_interval": ("⏰ أرسل فترة النشر بالساعات (مثال: 12):", AdminStates.waiting_for_schedule_interval), 
-        "add_media_type": ("➕ أرسل نوع الوسائط المسموح به (photo, video...):", AdminStates.waiting_for_add_media_type), 
+        "add_media_type": ("➕ أرسل نوع الوسائط (photo, video...):", AdminStates.waiting_for_add_media_type), 
         "remove_media_type": ("➖ أرسل نوع الوسائط للمنع:", AdminStates.waiting_for_remove_media_type), 
-        "edit_media_reject_message": ("✍️ أرسل رسالة الرفض الجديدة:", AdminStates.waiting_for_media_reject_message) 
+        "edit_media_reject_message": ("✍️ أرسل رسالة الرفض الجديدة:", AdminStates.waiting_for_media_reject_message),
+        # --- THIS IS THE UPDATE ---
+        "set_spam_limit": ("🔢 أرسل حد الرسائل (مثال: 5):", AdminStates.waiting_for_spam_limit),
+        "set_spam_window": ("⏱️ أرسل الفترة بالثواني (مثال: 60):", AdminStates.waiting_for_spam_window),
+        "set_slow_mode": ("⏳ أرسل فترة التباطؤ بالثواني (مثال: 5):", AdminStates.waiting_for_slow_mode),
+        "clear_user_data": ("🗑️ أرسل ID المستخدم لمسح بياناته:", AdminStates.waiting_for_clear_user_id)
+        # ---------------------------
     }
     if d in prompts:
         prompt_text, state_obj = prompts[d]
