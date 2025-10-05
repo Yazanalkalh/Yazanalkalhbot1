@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# This file creates all the keyboards (button layouts) for the admin panel.
+# This is the Golden Master version of the admin keyboards file.
+# It contains a definitive list of every button in the control panel.
 
 def create_admin_panel() -> InlineKeyboardMarkup:
     """Creates the main admin control panel keyboard."""
@@ -25,7 +26,6 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
     """Generates specific sub-menus for the admin panel."""
     keyboard = InlineKeyboardMarkup(row_width=2)
     
-    # A map of all possible sub-menus and their buttons
     buttons_map = {
         "admin_dyn_replies": [
             ("➕ برمجة رد جديد", "add_dyn_reply"), 
@@ -55,7 +55,7 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
         "admin_channel_settings": [
             ("🆔 تعديل ID القناة", "set_channel_id"), 
             ("⏰ تعديل فترة النشر", "set_schedule_interval"),
-            ("🧪 تجربة الإرسال للقناة", "test_channel") # New button added here
+            ("🧪 تجربة الإرسال للقناة", "test_channel")
         ],
         "admin_customize_ui": [
             ("✏️ تعديل زر التاريخ", "edit_date_button"), 
@@ -65,13 +65,28 @@ def get_menu_keyboard(menu_type: str) -> InlineKeyboardMarkup:
             ("👋 تعديل رسالة البدء", "edit_welcome_msg"), 
             ("💬 تعديل رسالة الرد", "edit_reply_msg")
         ],
+        # --- THIS IS THE UPDATE ---
+        # Added all security sub-menus for completeness
         "admin_security": [
-            ("🖼️ إدارة الوسائط", "media_settings")
+            ("🖼️ إدارة الوسائط", "media_settings"),
+            ("🔧 منع التكرار (Spam)", "spam_settings"),
+            ("⏳ التباطؤ (Slow Mode)", "slow_mode_settings")
         ],
         "media_settings": [
             ("➕ إضافة نوع مسموح", "add_media_type"), 
             ("➖ إزالة نوع", "remove_media_type"), 
             ("✍️ تعديل رسالة الرفض", "edit_media_reject_message")
+        ],
+        "spam_settings": [
+            ("🔢 تعديل حد الرسائل", "set_spam_limit"),
+            ("⏱️ تعديل الفترة الزمنية", "set_spam_window")
+        ],
+        "slow_mode_settings": [
+            ("⏳ تعديل فترة التباطؤ", "set_slow_mode")
+        ],
+        # ---------------------------
+        "admin_memory_management": [
+            ("🗑️ مسح بيانات مستخدم", "clear_user_data")
         ]
     }
     
