@@ -1,7 +1,7 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# This is the Golden Master version of the states file.
-# It contains a definitive list of every possible state for both control panels.
+# This is the upgraded version of the states file.
+# It now includes the new state for the Text Manager feature.
 
 class AdminStates(StatesGroup):
     # Dynamic Replies & Reminders (from /admin panel)
@@ -50,5 +50,8 @@ class AdminStates(StatesGroup):
     # Memory Management (from /admin panel)
     waiting_for_clear_user_id = State()
 
-    # --- NEW: State for the Advanced Panel (/hijri) ---
+    # State for the Advanced Panel (/hijri)
     waiting_for_force_channel_id = State()
+
+    # --- NEW ADDITION for Text Manager ---
+    waiting_for_new_text = State()
