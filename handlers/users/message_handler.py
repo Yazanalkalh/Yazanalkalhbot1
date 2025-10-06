@@ -9,8 +9,8 @@ from config import ADMIN_CHAT_ID
 from loader import bot
 import hashlib
 
-# This is the final, fully functional "Security Guard". It now understands
-# Maintenance Mode, Forced Subscription, and Anti-Duplicate Message rules.
+# This is the final, fully functional "Security Guard". It is now specialized
+# to work ONLY in private chats, ignoring group conversations.
 
 last_message_fingerprints = {}
 
@@ -28,11 +28,11 @@ async def message_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     settings = data_store.bot_data.get('bot_settings', {})
 
-    # --- NEW: Maintenance Mode Check (TOP PRIORITY) ---
+    # --- Maintenance Mode Check ---
     if settings.get('maintenance_mode', False):
         maintenance_msg = settings.get('maintenance_message', "عذرًا، البوت قيد الصيانة حاليًا. سنعود قريباً.")
         await message.reply(maintenance_msg)
-        return # Stop processing immediately
+        return
 
     # --- Forced Subscription Check ---
     if settings.get('force_subscribe', False):
@@ -53,7 +53,6 @@ async def message_handler(message: types.Message, state: FSMContext):
     if settings.get('anti_duplicate_mode', False):
         fingerprint = get_message_fingerprint(message)
         if last_message_fingerprints.get(user_id) == fingerprint:
-            # Silently ignore the duplicate message instead of replying
             return
         last_message_fingerprints[user_id] = fingerprint
 
@@ -73,5 +72,16 @@ async def message_handler(message: types.Message, state: FSMContext):
     )
 
 def register_message_handler(dp: Dispatcher):
-    """Registers the handler for user messages."""
-    dp.register_message_handler(message_handler, is_not_admin, state=None, content_types=types.ContentTypes.ANY)
+    """
+    Registers the handler for user messages.
+    UPGRADED: It now has a specific filter to ONLY trigger in private chats.
+    """
+    dp.register_message_handler(
+        message_handler, 
+        is_not_admin, 
+        # --- THIS IS THE CRITICAL FIX ---
+        # This lambda function ensures the handler only works in private chats (DMs)
+        lambda message: message.chat.type == types.ChatType.PRIVATE,
+        state=None, 
+        content_types=types.ContentTypes.ANY
+    )
