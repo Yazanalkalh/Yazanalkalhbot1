@@ -1,26 +1,15 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import data_store
 
-# This is a new, isolated file. Its only job is to design the buttons
-# for the new advanced control panel (/hijri).
+# This is the fully functional version of the advanced keyboard designer.
 
 def create_advanced_panel() -> InlineKeyboardMarkup:
-    """
-    Creates the main keyboard for the advanced control panel.
-    Some buttons are dynamic and change their text based on current settings.
-    """
+    """Creates the main keyboard for the advanced control panel."""
     keyboard = InlineKeyboardMarkup(row_width=2)
-    
-    # Get current settings to display the correct button status
     settings = data_store.bot_data.get('bot_settings', {})
     
-    # Dynamic button for Maintenance Mode
-    maintenance_status = "🟢 تشغيل البوت (إيقاف الصيانة)" if settings.get('maintenance_mode', False) else "🔴 إيقاف البوت (تفعيل الصيانة)"
-    
-    # Dynamic button for Anti-Duplicate Messages
+    maintenance_status = "🟢 تشغيل البوت" if settings.get('maintenance_mode', False) else "🔴 إيقاف البوت (صيانة)"
     antispam_status = "🔕 تعطيل منع التكرار" if settings.get('anti_duplicate_mode', False) else "🔔 تفعيل منع التكرار"
-
-    # Dynamic button for Forced Subscription
     force_sub_status = "🔗 تعطيل الإشتراك الإجباري" if settings.get('force_subscribe', False) else "🔗 تفعيل الإشتراك الإجباري"
 
     keyboard.add(
@@ -39,17 +28,12 @@ def create_advanced_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton("🌐 إدارة القنوات والمجموعات", callback_data="adv_manage_channels"),
         InlineKeyboardButton("🔬 مراقبة حالة النظام", callback_data="adv_system_status")
     )
-    # Add a back button to the main /admin panel for convenience
-    keyboard.add(
-        InlineKeyboardButton("🔙 العودة إلى اللوحة الرئيسية", callback_data="back_to_main")
-    )
+    keyboard.add(InlineKeyboardButton("🔙 العودة إلى اللوحة الرئيسية", callback_data="back_to_main"))
     return keyboard
 
 def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
     """Generates specific sub-menus for the advanced panel."""
-    keyboard = InlineKeyboardMarkup(row_width=1) # Use 1 for better readability in submenus
-    
-    # Get current notification settings to display correct status
+    keyboard = InlineKeyboardMarkup(row_width=1)
     notification_settings = data_store.bot_data.get('notification_settings', {})
     
     buttons_map = {
@@ -63,7 +47,8 @@ def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
         ],
         "adv_manage_channels": [
             ("📋 عرض القنوات المعتمدة", "adv_view_channels"),
-            ("⏳ عرض طلبات الانضمام", "adv_view_pending_channels")
+            ("⏳ عرض طلبات الانضمام", "adv_view_pending_channels"),
+            ("🆔 تحديد قناة الاشتراك الإجباري", "adv_set_force_channel") # NEW BUTTON
         ],
         "adv_stats": [
             ("📈 نمو المستخدمين (آخر 7 أيام)", "adv_stats_growth"),
@@ -73,6 +58,5 @@ def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
     
     buttons = [InlineKeyboardButton(text=text, callback_data=cb) for text, cb in buttons_map.get(menu_type, [])]
     keyboard.add(*buttons)
-    # Use a different back callback to return to the advanced panel, not the main one
     keyboard.add(InlineKeyboardButton(text="🔙 العودة للوحة المتقدمة", callback_data="back_to_advanced"))
     return keyboard
