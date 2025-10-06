@@ -1,37 +1,33 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# This is the upgraded version of the states file.
-# It now includes the new states for the bulk import feature.
+# This is the Golden Master version of the states file.
+# It contains a definitive list of every possible state for both control panels.
 
 class AdminStates(StatesGroup):
-    # Dynamic Replies states
+    # Dynamic Replies & Reminders (from /admin panel)
     waiting_for_dyn_reply_keyword = State()
     waiting_for_dyn_reply_content = State()
     waiting_for_dyn_reply_delete = State()
-    # --- NEW ADDITION 1 ---
     waiting_for_dyn_replies_file = State()
-
-    # Reminders states
     waiting_for_new_reminder = State()
     waiting_for_delete_reminder = State()
-    # --- NEW ADDITION 2 ---
     waiting_for_reminders_file = State()
-
-    # Ban Management states
+    
+    # Ban Management (from /admin panel)
     waiting_for_ban_id = State()
     waiting_for_unban_id = State()
     
-    # Channel Messages states
+    # Channel Messages (from /admin panel)
     waiting_for_new_channel_msg = State()
     waiting_for_delete_channel_msg = State()
     waiting_for_instant_channel_post = State()
     waiting_for_scheduled_post_content = State()
     waiting_for_scheduled_post_datetime = State()
 
-    # Broadcast state
+    # Broadcast (from /admin panel)
     waiting_for_broadcast_message = State()
 
-    # UI Customization states
+    # UI Customization (from /admin panel)
     waiting_for_date_button_label = State()
     waiting_for_time_button_label = State()
     waiting_for_reminder_button_label = State()
@@ -39,19 +35,20 @@ class AdminStates(StatesGroup):
     waiting_for_welcome_message = State()
     waiting_for_reply_message = State()
 
-    # Channel Settings states
+    # Channel Settings (from /admin panel)
     waiting_for_channel_id = State()
     waiting_for_schedule_interval = State()
     
-    # Media Settings states
+    # Media & Security (from /admin panel)
     waiting_for_add_media_type = State()
     waiting_for_remove_media_type = State()
     waiting_for_media_reject_message = State()
-    
-    # Security states (Spam & Slow mode)
     waiting_for_spam_limit = State()
     waiting_for_spam_window = State()
     waiting_for_slow_mode = State()
 
-    # Memory Management state
+    # Memory Management (from /admin panel)
     waiting_for_clear_user_id = State()
+
+    # --- NEW: State for the Advanced Panel (/hijri) ---
+    waiting_for_force_channel_id = State()
