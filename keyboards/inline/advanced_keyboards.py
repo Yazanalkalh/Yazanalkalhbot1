@@ -1,8 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import data_store
 
-# This is the upgraded version of the advanced keyboard designer.
-# It now includes the new "Text Manager" button.
+# This is the final, definitive version of the advanced keyboard designer.
 
 def create_advanced_panel() -> InlineKeyboardMarkup:
     """Creates the main keyboard for the advanced control panel."""
@@ -29,11 +28,9 @@ def create_advanced_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton("🌐 إدارة القنوات والمجموعات", callback_data="adv_manage_channels"),
         InlineKeyboardButton("🔬 مراقبة حالة النظام", callback_data="adv_system_status")
     )
-    # --- NEW ADDITION ---
     keyboard.add(
         InlineKeyboardButton("✏️ إدارة نصوص البوت", callback_data="adv_text_manager")
     )
-    # --------------------
     keyboard.add(
         InlineKeyboardButton("🔙 العودة إلى اللوحة الرئيسية", callback_data="back_to_main")
     )
