@@ -4,10 +4,10 @@ import random
 from loader import bot
 from config import ADMIN_CHAT_ID
 import data_store
-# NEW: We import the specific, upgraded database functions
+# We import the specific, upgraded database functions
 from utils.database import get_due_scheduled_posts, get_content_from_library, mark_post_as_sent
 
-# This function is UNCHANGED as it handles random recurring posts, not the new library.
+# This function remains unchanged.
 async def schedule_channel_messages():
     """Periodically sends a random message from the old channel_messages list."""
     while True:
@@ -27,80 +27,75 @@ async def schedule_channel_messages():
             print(f"CHANNEL SCHEDULER ERROR: {e}")
             await asyncio.sleep(60)
 
-# --- UPGRADED: This is the new "Shipping Coordinator" ---
+# --- UPGRADED: The "Shipping Coordinator" now has a walkie-talkie ---
 async def process_scheduled_posts():
     """
-    UPGRADED: This function now works with the Content Library.
-    It fetches due posts, gets the original content from the library,
-    and sends it using the correct method (text, sticker, photo).
+    UPGRADED: This function now sends success/fail notifications to the admin
+    based on the settings in the advanced panel.
     """
     while True:
         try:
-            await asyncio.sleep(30) # Check for due posts every 30 seconds
+            await asyncio.sleep(30)
             
-            # 1. Ask the "Warehouse Manager" for due shipments
             due_posts = get_due_scheduled_posts()
-
             if not due_posts:
-                continue # No work to do, wait for the next cycle
+                continue
 
-            print(f"Processing {len(due_posts)} scheduled post(s)...")
+            notification_settings = data_store.bot_data.get('notification_settings', {})
 
             for post in due_posts:
-                try:
-                    # 2. Get the original product from the library using its reference ID
-                    content_doc = get_content_from_library(post['content_id'])
+                content_doc = get_content_from_library(post['content_id'])
+                channel_id_to_post = post.get('channel_id', 'N/A')
 
+                try:
                     if not content_doc:
-                        print(f"⚠️ Could not find content with ID {post['content_id']}. Skipping.")
-                        mark_post_as_sent(post['_id']) # Mark as sent to avoid repeated errors
-                        continue
+                        raise ValueError(f"المحتوى ID {post['content_id']} لم يعد موجودًا في المكتبة.")
 
                     content_type = content_doc['type']
                     content_value = content_doc['value']
-                    channel_id = post['channel_id']
 
-                    # 3. Choose the correct delivery truck based on the content type
                     if content_type == 'text':
-                        await bot.send_message(channel_id, content_value)
+                        await bot.send_message(channel_id_to_post, content_value)
                     elif content_type == 'sticker':
-                        await bot.send_sticker(channel_id, content_value)
+                        await bot.send_sticker(channel_id_to_post, content_value)
                     elif content_type == 'photo':
-                        await bot.send_photo(channel_id, content_value)
+                        await bot.send_photo(channel_id_to_post, content_value)
                     
-                    print(f"✅ Sent scheduled {content_type} to {channel_id}")
-
-                    # 4. Confirm delivery to the "Warehouse Manager"
                     mark_post_as_sent(post['_id'])
+                    print(f"✅ Sent scheduled {content_type} to {channel_id_to_post}")
+
+                    # --- NEW: Success Notification Logic ---
+                    if notification_settings.get('on_success', False):
+                        await bot.send_message(ADMIN_CHAT_ID, f"✅ **إشعار نجاح**\n\nتم نشر المحتوى المجدول بنجاح في القناة `{channel_id_to_post}`.")
 
                 except Exception as e:
                     print(f"SCHEDULED POST SEND ERROR for post {post['_id']}: {e}")
-                    # We don't mark it as sent, so the bot will retry on the next cycle
+                    
+                    # --- NEW: Failure Notification Logic ---
+                    if notification_settings.get('on_fail', False):
+                        error_message = str(e)
+                        await bot.send_message(
+                            ADMIN_CHAT_ID,
+                            f"⚠️ **إشعار فشل**\n\nفشلت في نشر المحتوى المجدول في القناة `{channel_id_to_post}`.\n\n"
+                            f"**سبب الخطأ:**\n`{error_message}`\n\n"
+                            "سيحاول البوت إعادة الإرسال في الدورة التالية."
+                        )
 
         except Exception as e:
-            print(f"SCHEDULED POST PROCESSOR ERROR: {e}")
-            await asyncio.sleep(60) # Wait a minute before retrying on major error
+            print(f"MAJOR SCHEDULED POST PROCESSOR ERROR: {e}")
+            await asyncio.sleep(60)
 
 
-# This function is UNCHANGED. It correctly starts all background tasks.
+# This function is unchanged.
 async def startup_tasks(dp):
     """Tasks to run on bot startup."""
     try:
         await bot.send_message(
             ADMIN_CHAT_ID,
-            (
-                "✅ <b>البوت يعمل بنجاح! (إصدار مكتبة المحتوى)</b>\n\n"
-                "- <b>الحالة:</b> متصل ونشط\n"
-                "- <b>الخادم:</b> يعمل\n"
-                "- <b>قاعدة البيانات:</b> متصلة\n\n"
-                "<i>جاهز لاستقبال الرسائل.</i>"
-            )
+            "✅ **البوت يعمل بنجاح!**\n\n- <b>الحالة:</b> متصل ونشط\n- <b>الخادم:</b> يعمل"
         )
-        # Start both the old random scheduler and the new smart scheduler
         asyncio.create_task(schedule_channel_messages())
         asyncio.create_task(process_scheduled_posts())
-        print("✅ Background tasks (including new scheduler) started.")
+        print("✅ Background tasks started.")
     except Exception as e:
         print(f"STARTUP NOTIFICATION ERROR: {e}")
-
-
