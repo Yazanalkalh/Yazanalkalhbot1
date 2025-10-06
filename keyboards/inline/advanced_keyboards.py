@@ -1,7 +1,8 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import data_store
 
-# This is the fully functional version of the advanced keyboard designer.
+# This is the upgraded version of the advanced keyboard designer.
+# It now includes the new "Text Manager" button.
 
 def create_advanced_panel() -> InlineKeyboardMarkup:
     """Creates the main keyboard for the advanced control panel."""
@@ -28,7 +29,14 @@ def create_advanced_panel() -> InlineKeyboardMarkup:
         InlineKeyboardButton("🌐 إدارة القنوات والمجموعات", callback_data="adv_manage_channels"),
         InlineKeyboardButton("🔬 مراقبة حالة النظام", callback_data="adv_system_status")
     )
-    keyboard.add(InlineKeyboardButton("🔙 العودة إلى اللوحة الرئيسية", callback_data="back_to_main"))
+    # --- NEW ADDITION ---
+    keyboard.add(
+        InlineKeyboardButton("✏️ إدارة نصوص البوت", callback_data="adv_text_manager")
+    )
+    # --------------------
+    keyboard.add(
+        InlineKeyboardButton("🔙 العودة إلى اللوحة الرئيسية", callback_data="back_to_main")
+    )
     return keyboard
 
 def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
@@ -48,7 +56,7 @@ def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
         "adv_manage_channels": [
             ("📋 عرض القنوات المعتمدة", "adv_view_channels"),
             ("⏳ عرض طلبات الانضمام", "adv_view_pending_channels"),
-            ("🆔 تحديد قناة الاشتراك الإجباري", "adv_set_force_channel") # NEW BUTTON
+            ("🆔 تحديد قناة الاشتراك الإجباري", "adv_set_force_channel")
         ],
         "adv_stats": [
             ("📈 نمو المستخدمين (آخر 7 أيام)", "adv_stats_growth"),
