@@ -15,10 +15,10 @@ def create_advanced_panel() -> InlineKeyboardMarkup:
     settings = data_store.bot_data.get('bot_settings', {})
     
     # Dynamic button for Maintenance Mode
-    maintenance_status = "🔴 تعطيل البوت (صيانة)" if not settings.get('maintenance_mode', False) else "🟢 تشغيل البوت"
+    maintenance_status = "🟢 تشغيل البوت (إيقاف الصيانة)" if settings.get('maintenance_mode', False) else "🔴 إيقاف البوت (تفعيل الصيانة)"
     
-    # Dynamic button for Anti-Spam
-    antispam_status = "🔕 تعطيل وضع عدم الإزعاج" if settings.get('anti_duplicate_mode', False) else "🔔 تفعيل وضع عدم الإزعاج"
+    # Dynamic button for Anti-Duplicate Messages
+    antispam_status = "🔕 تعطيل منع التكرار" if settings.get('anti_duplicate_mode', False) else "🔔 تفعيل منع التكرار"
 
     # Dynamic button for Forced Subscription
     force_sub_status = "🔗 تعطيل الإشتراك الإجباري" if settings.get('force_subscribe', False) else "🔗 تفعيل الإشتراك الإجباري"
@@ -47,16 +47,18 @@ def create_advanced_panel() -> InlineKeyboardMarkup:
 
 def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
     """Generates specific sub-menus for the advanced panel."""
-    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard = InlineKeyboardMarkup(row_width=1) # Use 1 for better readability in submenus
+    
+    # Get current notification settings to display correct status
+    notification_settings = data_store.bot_data.get('notification_settings', {})
     
     buttons_map = {
         "adv_notifications": [
-            # In the future, we can make these dynamic too
-            ("켜기 إشعار النشر الناجح", "adv_toggle_success_notify"),
-            ("켜기 إشعار فشل النشر", "adv_toggle_fail_notify")
+            ("🟢 تفعيل إشعار النجاح" if not notification_settings.get('on_success', False) else "🔴 تعطيل إشعار النجاح", "adv_toggle_success_notify"),
+            ("🟢 تفعيل إشعار الفشل" if not notification_settings.get('on_fail', False) else "🔴 تعطيل إشعار الفشل", "adv_toggle_fail_notify")
         ],
         "adv_manage_library": [
-            ("📖 عرض محتوى المكتبة", "adv_view_library"),
+            ("📖 عرض كل المحتوى", "adv_view_library"),
             ("🧹 حذف المحتوى غير المستخدم", "adv_prune_library")
         ],
         "adv_manage_channels": [
