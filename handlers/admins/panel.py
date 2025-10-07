@@ -43,7 +43,8 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "close_panel": await cq.message.delete(); return
     if d == "back_to_main": await cq.message.edit_text("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel()); return
     
-    # Interactive List Deletion
+    # --- UPGRADED: Interactive List Deletion ---
+    # This block handles deletion callbacks from the interactive lists.
     if d.startswith("del_reminder_"):
         # This logic is now safer with state check
         data = await state.get_data()
@@ -67,11 +68,12 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
             del data_store.bot_data['dynamic_replies'][keyword]
             data_store.save_data()
             await cq.answer("✅ تم الحذف بنجاح.")
+            # Refresh the list view
             cq.data = "show_dyn_replies"
             await callbacks_cmd(cq, state)
         return
         
-    # Other handlers
+    # --- Other handlers remain the same ---
     if d == "admin_stats":
         stats_text = (f"📊 **إحصائيات البوت:**\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data.get('users', []))}\n"
