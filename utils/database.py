@@ -13,6 +13,7 @@ try:
     settings_collection = db.get_collection("BotSettings")
     content_library_collection = db.get_collection("ContentLibrary")
     scheduled_posts_collection = db.get_collection("ScheduledPosts")
+    # NEW Collections for advanced features
     channels_collection = db.get_collection("Channels")
     users_collection = db.get_collection("Users")
 
@@ -87,9 +88,10 @@ def mark_post_as_sent(post_object_id):
         {"_id": post_object_id}, {"$set": {"sent": True}}
     )
 
-# --- Channel/Group Management Functions ---
+# --- NEW: Channel/Group Management Functions ---
 def add_pending_channel(chat_id: int, title: str):
     """Adds a new channel/group to the pending list for admin approval."""
+    # Use update_one with upsert to avoid duplicate errors if the bot is re-added
     channels_collection.update_one(
         {"_id": chat_id},
         {"$set": {
@@ -116,10 +118,11 @@ def get_approved_channels():
     """Gets a list of all approved channels for broadcasting."""
     return list(channels_collection.find({"status": "approved"}))
 
-# --- Stats & System Status Functions ---
+# --- NEW: Stats & System Status Functions ---
 def get_db_stats():
     """Gathers various statistics from the database."""
     try:
+        # Pinging the server is a good way to check connection.
         db.command('ping')
         is_connected = True
     except:
@@ -131,39 +134,3 @@ def get_db_stats():
         "scheduled_count": scheduled_posts_collection.count_documents({"sent": False}),
         "users_count": users_collection.count_documents({})
     }
-
-# --- [إضافة جديدة] الدوال المتقدمة المطلوبة للوحة التحكم ---
-
-def prune_unused_content():
-    """
-    Deletes content from the library that is not scheduled for any future post.
-    This is an advanced and potentially slow operation.
-    """
-    try:
-        # 1. Get all unique content_ids that are still in the schedule
-        scheduled_ids = scheduled_posts_collection.distinct("content_id")
-        
-        # 2. Define the query to find library items NOT in the scheduled list
-        query = {"_id": {"$nin": scheduled_ids}}
-        
-        # 3. Delete the documents and get the count of deleted items
-        result = content_library_collection.delete_many(query)
-        return result.deleted_count
-    except Exception as e:
-        print(f"DB PRUNE ERROR: {e}")
-        return 0
-
-def get_user_growth_stats():
-    """
-    Placeholder function to get user growth statistics.
-    You can develop this later to return charts or detailed data.
-    """
-    total_users = users_collection.count_documents({})
-    return f"إجمالي عدد المستخدمين: **{total_users}**\n\n(ميزة الإحصائيات المتقدمة قيد التطوير)"
-
-def get_top_users():
-    """
-    Placeholder function to get the most active users.
-    You can develop this later by tracking user activity.
-    """
-    return "سيتم عرض قائمة المستخدمين الأكثر تفاعلاً هنا قريباً."
