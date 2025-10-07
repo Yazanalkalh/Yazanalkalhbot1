@@ -1,10 +1,9 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# This is the Golden Master version of the states file.
-# It contains a definitive list of every possible state for both control panels.
+# This is the final, definitive list of all possible states for BOTH control panels.
 
 class AdminStates(StatesGroup):
-    # Dynamic Replies & Reminders (from /admin panel)
+    # /admin panel states
     waiting_for_dyn_reply_keyword = State()
     waiting_for_dyn_reply_content = State()
     waiting_for_dyn_reply_delete = State()
