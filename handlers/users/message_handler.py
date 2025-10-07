@@ -9,18 +9,22 @@ from config import ADMIN_CHAT_ID
 from loader import bot
 import hashlib
 
-# This is the final and definitive version of the "Security Guard".
+# This is the final, definitive version of the "Security Guard".
+# It now correctly enforces the media type restrictions.
 
 last_message_fingerprints = {}
 
 def get_message_fingerprint(message: types.Message) -> str:
+    """Creates a unique fingerprint for a message to detect duplicates."""
     content = message.text or (message.sticker.file_unique_id if message.sticker else str(message.message_id))
     return hashlib.sha256(content.encode()).hexdigest()
 
 def is_not_admin(message: types.Message):
+    """A filter to ensure the message is not from the admin."""
     return message.from_user.id != ADMIN_CHAT_ID
 
 async def message_handler(message: types.Message, state: FSMContext):
+    """Handler for all other user messages with advanced security checks."""
     user_id = message.from_user.id
     settings = data_store.bot_data.get('bot_settings', {})
 
@@ -43,7 +47,15 @@ async def message_handler(message: types.Message, state: FSMContext):
             except Exception as e:
                 print(f"Force Subscribe Error: {e}")
 
-    # --- 3. Anti-Duplicate Message Check ---
+    # --- 3. NEW: Media Type Check ---
+    # This check is now active and respects the settings from the /admin panel.
+    allowed_media = settings.get('allowed_media_types', ['text'])
+    if message.content_type not in allowed_media:
+        reject_message = settings.get('media_reject_message', "عذرًا، هذا النوع من الرسائل غير مسموح به.")
+        await message.reply(reject_message)
+        return # Stop processing immediately
+
+    # --- 4. Anti-Duplicate Message Check ---
     if settings.get('anti_duplicate_mode', False):
         fingerprint = get_message_fingerprint(message)
         if last_message_fingerprints.get(user_id) == fingerprint:
@@ -61,6 +73,7 @@ async def message_handler(message: types.Message, state: FSMContext):
     await message.reply(settings.get('reply_message', "✅ تم استلام رسالتك."), reply_markup=create_user_buttons())
 
 def register_message_handler(dp: Dispatcher):
+    """Registers the handler for user messages."""
     dp.register_message_handler(
         message_handler, is_not_admin, 
         lambda message: message.chat.type == types.ChatType.PRIVATE,
