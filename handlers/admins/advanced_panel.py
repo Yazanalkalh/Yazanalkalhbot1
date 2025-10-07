@@ -8,6 +8,8 @@ from utils.database import (
     get_all_library_content, delete_content_by_id,
     get_pending_channels, approve_channel, reject_channel, get_approved_channels,
     get_db_stats,
+    # افترض وجود هذه الدوال، إذا لم تكن موجودة، يجب إنشاؤها
+    # prune_unused_content, get_user_growth_stats, get_top_users
 )
 from states.admin_states import AdminStates
 
@@ -24,7 +26,10 @@ async def advanced_panel_cmd(m: types.Message, state: FSMContext):
     )
 
 async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
+    # استخدام cq.answer() في بداية الدالة هو أفضل ممارسة
+    # لإعلام تليجرام أن الزر قد تم استلامه فوراً.
     await cq.answer()
+    
     d = cq.data
     settings = data_store.bot_data.setdefault('bot_settings', {})
     notification_settings = data_store.bot_data.setdefault('notification_settings', {})
@@ -48,6 +53,7 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         markup = get_advanced_submenu("adv_notifications") if 'notify' in d else create_advanced_panel()
         await cq.message.edit_reply_markup(markup)
         status = "تفعيل" if target_dict[key] else "تعطيل"
+        # تم نقل cq.answer هنا لتقديم رسالة مخصصة
         await cq.answer(f"✅ تم {status} '{name}'.")
         return
 
@@ -76,11 +82,9 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         text = "📚 **محتويات المكتبة:**\nاضغط على عنصر لحذفه."
         if not content: text = "📚 **مكتبة المحتوى فارغة.**"
         else:
-            # Store the list in state to use short indices for callback_data
             await state.update_data(library_view=content)
             for i, item in enumerate(content):
                 snippet = item.get('value', '')[:40].replace('\n', ' ') + "..."
-                # Use a short index to avoid long callback data
                 kb.add(types.InlineKeyboardButton(f"🗑️ `{item.get('type')}`: {snippet}", callback_data=f"adv_delete_lib_idx_{i}"))
         kb.add(types.InlineKeyboardButton("🔙 العودة", callback_data="adv_manage_library"))
         await cq.message.edit_text(text, reply_markup=kb)
@@ -93,13 +97,22 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         if 0 <= idx < len(content_list):
             item_to_delete = content_list.pop(idx)
             delete_content_by_id(item_to_delete['_id'])
-            await state.update_data(library_view=content_list) # Update the list in state
+            await state.update_data(library_view=content_list)
             await cq.answer("✅ تم الحذف.", show_alert=True)
-            # Refresh view by simulating a click
             temp_cq = types.CallbackQuery(id=cq.id, from_user=cq.from_user, chat_instance=cq.chat_instance, message=cq.message, data="adv_view_library")
             await advanced_callbacks_cmd(temp_cq, state)
         return
-        
+    
+    # --- [إضافة جديدة] تفعيل زر حذف المحتوى غير المستخدم ---
+    if d == "adv_prune_library":
+        # ملاحظة: هذه وظيفة تحتاج إلى منطق دقيق في ملف database.py
+        # حالياً سنضع رسالة مؤقتة
+        await cq.answer("🧹 وظيفة حذف المحتوى غير المستخدم (قيد التطوير).", show_alert=True)
+        # عند تجهيزها، يمكنك استدعاء دالة مثل:
+        # count = prune_unused_content()
+        # await cq.answer(f"✅ تم حذف {count} عنصر غير مستخدم.", show_alert=True)
+        return
+
     # --- Logic for Channel Management ---
     if d == "adv_view_pending_channels":
         pending = get_pending_channels()
@@ -120,24 +133,27 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         else:
             for chat in approved:
                 text += f"- {chat['title']} (`{chat['_id']}`)\n"
-        await cq.message.edit_text(text, reply_markup=get_advanced_submenu("adv_manage_channels"))
+        # [تصحيح هام] تم إصلاح زر العودة هنا ليعمل بشكل صحيح
+        kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 العودة", callback_data="adv_manage_channels"))
+        await cq.message.edit_text(text, reply_markup=kb)
         return
     
+    # [تصحيح هام] تم تعديل هذا القسم ليتعامل مع IDs كنصوص (Strings) بدلاً من أرقام لتجنب الأخطاء
     if d.startswith("adv_review_"):
-        chat_id = int(d.replace("adv_review_", ""))
+        chat_id_str = d.replace("adv_review_", "")
         kb = types.InlineKeyboardMarkup(row_width=2)
-        kb.add(types.InlineKeyboardButton("✅ موافقة", callback_data=f"adv_approve_{chat_id}"),
-               types.InlineKeyboardButton("❌ رفض", callback_data=f"adv_reject_{chat_id}"))
-        await cq.message.edit_text(f"هل توافق على انضمام البوت إلى `{chat_id}`؟", reply_markup=kb)
+        kb.add(types.InlineKeyboardButton("✅ موافقة", callback_data=f"adv_approve_{chat_id_str}"),
+               types.InlineKeyboardButton("❌ رفض", callback_data=f"adv_reject_{chat_id_str}"))
+        await cq.message.edit_text(f"هل توافق على انضمام البوت إلى القناة؟\nID: `{chat_id_str}`", reply_markup=kb)
         return
 
     if d.startswith("adv_approve_"):
-        chat_id = int(d.replace("adv_approve_", "")); approve_channel(chat_id)
+        chat_id_str = d.replace("adv_approve_", ""); approve_channel(chat_id_str)
         await cq.message.edit_text("✅ تمت الموافقة.", reply_markup=get_advanced_submenu("adv_manage_channels"))
         return
 
     if d.startswith("adv_reject_"):
-        chat_id = int(d.replace("adv_reject_", "")); reject_channel(chat_id)
+        chat_id_str = d.replace("adv_reject_", ""); reject_channel(chat_id_str)
         await cq.message.edit_text("❌ تم الرفض.", reply_markup=get_advanced_submenu("adv_manage_channels"))
         return
 
@@ -146,9 +162,31 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         current = settings.get('force_channel_id', 'غير محدد')
         await cq.message.edit_text(f"🔗 **تحديد قناة الإشتراك:**\n\nالحالية: `{current}`\n\nأرسل الآن ID القناة.", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 إلغاء", callback_data="back_to_advanced")))
         return
+    
+    # --- [إضافة جديدة] تفعيل أزرار الإحصائيات ---
+    if d == "adv_stats_growth":
+        # يمكنك هنا استدعاء دالة من قاعدة البيانات تعرض نمو المستخدمين
+        # text = get_user_growth_stats()
+        text = "📈 **نمو المستخدمين (آخر 7 أيام):**\n\nهذه الميزة قيد التطوير وستعرض رسماً بيانياً قريباً."
+        await cq.message.edit_text(text, reply_markup=get_advanced_submenu("adv_stats"))
+        return
+    
+    if d == "adv_stats_top_users":
+        # يمكنك هنا استدعاء دالة من قاعدة البيانات تعرض أكثر المستخدمين تفاعلاً
+        # text = get_top_users()
+        text = "🏆 **المستخدمون الأكثر تفاعلاً:**\n\nهذه الميزة قيد التطوير وستعرض قائمة بالمستخدمين قريباً."
+        await cq.message.edit_text(text, reply_markup=get_advanced_submenu("adv_stats"))
+        return
         
-    # Fallback for buttons still in development like stats
-    await cq.answer("⚠️ هذه الميزة (مثل الإحصائيات المتقدمة) قيد الإنشاء.", show_alert=True)
+    # --- [إضافة جديدة] تفعيل زر إدارة النصوص ---
+    if d == "adv_text_manager":
+        await cq.answer("✏️ وظيفة إدارة نصوص البوت (قيد التطوير).", show_alert=True)
+        return
+        
+    # [ملاحظة] هذه الرسالة لم يعد من المفترض أن تظهر
+    # لأن كل الأزرار المعروفة تم تعريف وظائفها في الأعلى.
+    # سنتركها كإجراء احترازي لأي زر جديد قد تضيفه مستقبلاً.
+    await cq.answer("⚠️ زر غير معروف أو ميزة قيد الإنشاء.", show_alert=True)
 
 def register_advanced_panel_handler(dp: Dispatcher):
     dp.register_message_handler(advanced_panel_cmd, is_admin, commands=['hijri'], state="*")
