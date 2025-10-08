@@ -3,9 +3,6 @@ from config import MONGO_URI
 import hashlib
 import datetime
 
-# This is the fully upgraded "Warehouse Manager".
-# It now handles settings, content library, channels, users, and stats.
-
 try:
     client = MongoClient(MONGO_URI)
     db = client.get_database("HijriBotDB_V2")
@@ -13,7 +10,6 @@ try:
     settings_collection = db.get_collection("BotSettings")
     content_library_collection = db.get_collection("ContentLibrary")
     scheduled_posts_collection = db.get_collection("ScheduledPosts")
-    # NEW Collections for advanced features
     channels_collection = db.get_collection("Channels")
     users_collection = db.get_collection("Users")
 
@@ -22,21 +18,42 @@ except Exception as e:
     print(f"❌ DATABASE CONNECTION FAILED: {e}")
     exit(1)
 
-# --- Settings & User Functions ---
-def load_db_data():
-    """Loads general bot settings."""
-    data_doc = settings_collection.find_one({"_id": "main_bot_config"})
-    return data_doc if data_doc else {}
+# --- Settings Functions ---
 
-def save_db_data(data):
-    """Saves general bot settings."""
+def get_all_settings():
+    """
+    Loads the entire settings document. 
+    Should only be used on startup if needed, not for regular operations.
+    """
+    settings_doc = settings_collection.find_one({"_id": "main_bot_config"})
+    return settings_doc if settings_doc else {}
+
+def get_setting(setting_name: str, default_value=None):
+    """
+    ✅ دالة جديدة: لجلب قيمة إعداد واحد بشكل فعال وسريع.
+    
+    Example: get_setting("welcome_message", "Default Welcome!")
+    """
+    settings_doc = settings_collection.find_one({"_id": "main_bot_config"}, {setting_name: 1})
+    if settings_doc and setting_name in settings_doc:
+        return settings_doc[setting_name]
+    return default_value
+
+def update_setting(setting_name: str, value):
+    """
+    ✅ دالة جديدة: لتحديث قيمة إعداد واحد بشكل آمن.
+    """
     try:
-        settings_collection.find_one_and_update(
-            {"_id": "main_bot_config"}, {"$set": data}, upsert=True
+        settings_collection.update_one(
+            {"_id": "main_bot_config"},
+            {"$set": {setting_name: value}},
+            upsert=True
         )
     except Exception as e:
-        print(f"DB SETTINGS SAVE ERROR: {e}")
+        print(f"DB SETTING UPDATE ERROR for '{setting_name}': {e}")
 
+
+# --- User Functions ---
 def add_user(user_id: int, full_name: str, username: str):
     """Adds or updates a user in the database."""
     users_collection.update_one(
@@ -49,6 +66,7 @@ def add_user(user_id: int, full_name: str, username: str):
         upsert=True
     )
 
+# ... (بقية الدوال في ملفك تبقى كما هي بدون تغيير) ...
 # --- Content Library Functions ---
 def add_content_to_library(content_type: str, content_value: str) -> str:
     content_hash = hashlib.sha256(content_value.encode()).hexdigest()
@@ -63,11 +81,9 @@ def get_content_from_library(content_id: str):
     return content_library_collection.find_one({"_id": content_id})
 
 def get_all_library_content(limit=20):
-    """Retrieves the most recent items from the library."""
     return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
 
 def delete_content_by_id(content_id: str):
-    """Deletes a specific item from the content library."""
     content_library_collection.delete_one({"_id": content_id})
 
 # --- Scheduled Posts Functions ---
@@ -88,10 +104,8 @@ def mark_post_as_sent(post_object_id):
         {"_id": post_object_id}, {"$set": {"sent": True}}
     )
 
-# --- NEW: Channel/Group Management Functions ---
+# --- Channel/Group Management Functions ---
 def add_pending_channel(chat_id: int, title: str):
-    """Adds a new channel/group to the pending list for admin approval."""
-    # Use update_one with upsert to avoid duplicate errors if the bot is re-added
     channels_collection.update_one(
         {"_id": chat_id},
         {"$set": {
@@ -103,26 +117,21 @@ def add_pending_channel(chat_id: int, title: str):
     )
 
 def approve_channel(chat_id: int):
-    """Approves a pending channel."""
     channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
 
 def reject_channel(chat_id: int):
-    """Rejects (deletes) a pending channel request."""
     channels_collection.delete_one({"_id": chat_id})
 
 def get_pending_channels():
-    """Gets a list of all channels awaiting approval."""
     return list(channels_collection.find({"status": "pending"}))
 
 def get_approved_channels():
-    """Gets a list of all approved channels for broadcasting."""
     return list(channels_collection.find({"status": "approved"}))
 
-# --- NEW: Stats & System Status Functions ---
+# --- Stats & System Status Functions ---
 def get_db_stats():
     """Gathers various statistics from the database."""
     try:
-        # Pinging the server is a good way to check connection.
         db.command('ping')
         is_connected = True
     except:
