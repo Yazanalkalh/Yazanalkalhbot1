@@ -67,10 +67,10 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d in sub_menus:
         # This is an example; in the final code, these titles would also be in texts.py
         titles = {
-            "adv_notifications": "🔔 **إعدادات الإشعارات**",
-            "adv_manage_library": "📚 **إدارة مكتبة المحتوى**",
-            "adv_manage_channels": "🌐 **إدارة القنوات والمجموعات**",
-            "adv_stats": "📊 **قسم الإحصائيات**"
+            "adv_notifications": "🔔  إعدادات الإشعارات ",
+            "adv_manage_library": "📚  إدارة مكتبة المحتوى ",
+            "adv_manage_channels": "🌐  إدارة القنوات والمجموعات ",
+            "adv_stats": "📊  قسم الإحصائيات "
         }
         await cq.message.edit_text(titles[d], reply_markup=get_advanced_submenu(d))
         return
