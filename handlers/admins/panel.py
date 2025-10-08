@@ -9,7 +9,7 @@ import datetime
 # --- UPGRADE: Import the text manager ---
 from utils import texts
 
-# This is the final, definitive version of the main admin panel handler.
+# This is the final, definitive, and fixed version of the main admin panel.
 # It has been fully upgraded to use the central text manager and not conflict with other panels.
 
 def is_admin(message: types.Message):
@@ -74,7 +74,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     # The upgrade process should continue for these as well.
     if d == "admin_stats":
         # This is an example of text that should also be in texts.py
-        stats_text = (f"📊 إحصائيات البوت:\n\n"
+        stats_text = (f"📊 **إحصائيات البوت:**\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data.get('users', []))}\n"
                       # ... etc
                       )
@@ -123,8 +123,10 @@ def register_panel_handlers(dp: Dispatcher):
     """Registers the main admin command and callback handlers with corrected filters."""
     dp.register_message_handler(admin_panel_cmd, is_admin, commands=['admin'], state="*")
     
+    # This handler now only triggers when the admin is NOT in any state.
     dp.register_message_handler(admin_reply_cmd, is_admin, is_reply=True, content_types=types.ContentTypes.ANY, state=None)
     
+    # This handler is now specific and won't steal callbacks from other panels.
     dp.register_callback_query_handler(
         callbacks_cmd, 
         is_admin, 
