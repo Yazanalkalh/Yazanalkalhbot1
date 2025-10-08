@@ -3,9 +3,8 @@ import sys
 import atexit
 from threading import Thread
 
-# --- Lock File logic to prevent duplicate instances (Unchanged) ---
+# --- Lock File logic (Unchanged) ---
 LOCK_FILE = "bot.lock"
-
 def create_lock_file():
     if os.path.exists(LOCK_FILE):
         try:
@@ -17,21 +16,18 @@ def create_lock_file():
         except (IOError, ValueError): os.remove(LOCK_FILE)
     with open(LOCK_FILE, "w") as f: f.write(str(os.getpid()))
     print(f"✅ Lock file created for PID: {os.getpid()}.")
-
 def remove_lock_file():
     if os.path.exists(LOCK_FILE):
         os.remove(LOCK_FILE)
         print("✅ Lock file removed on clean exit.")
-
 atexit.register(remove_lock_file)
 create_lock_file()
-# --------------------------------------------------------------------
+# -----------------------------------
 
 from aiogram.utils import executor
 from loader import dp
 from handlers import register_all_handlers
-# --- NEW: 1. Import the registration function for our "new lamp" ---
-from handlers.admins.text_manager_handler import register_text_manager_handler
+# NOTE: We no longer import the text_manager_handler here. It's now handled by the HR manager.
 from utils.background_tasks import startup_tasks
 from web_server import run_web_server
 import data_store
@@ -40,11 +36,8 @@ async def on_startup(dispatcher):
     """Function to run on bot startup."""
     data_store.initialize_data()
     
-    # Register all the old, working handlers
+    # This single line now registers ALL handlers in the correct order.
     register_all_handlers(dispatcher)
-    
-    # --- NEW: 2. Plug in the "new lamp" ---
-    register_text_manager_handler(dispatcher)
     
     await startup_tasks(dispatcher)
 
