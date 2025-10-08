@@ -3,8 +3,7 @@ from config import MONGO_URI
 import hashlib
 import datetime
 
-# هذا الملف هو النسخة الكاملة والمحدثة لمدير قاعدة البيانات
-# قم بنسخ هذا الملف بالكامل واستبدال الملف القديم لديك
+# هذا الملف هو النسخة الكاملة والنهائية لمدير قاعدة البيانات
 
 try:
     client = MongoClient(MONGO_URI)
