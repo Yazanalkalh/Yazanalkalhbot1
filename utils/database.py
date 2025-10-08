@@ -63,7 +63,7 @@ def get_user_last_fingerprint(user_id: int) -> str or None:
 def update_user_last_fingerprint(user_id: int, fingerprint: str):
     users_collection.update_one({"_id": user_id}, {"$set": {"last_message_fingerprint": fingerprint}})
 
-# --- دوال الردود والتذكيرات والنصوص ---
+# --- دوال المحتوى المتنوع ---
 def get_dynamic_reply(text: str) -> str or None:
     if not text: return None
     reply_data = settings_collection.find_one({"_id": "main_bot_config"}, {f"dynamic_replies.{text}": 1})
@@ -91,6 +91,10 @@ def delete_reminder(reminder_text: str) -> bool:
 def get_all_reminders() -> list:
     return get_setting("reminders", [])
 
+def get_channel_messages() -> list:
+    """✅ دالة جديدة: لجلب قائمة رسائل القناة القديمة من قاعدة البيانات."""
+    return get_setting("channel_messages", [])
+
 def update_custom_text(key: str, text: str):
     settings_collection.update_one({"_id": "main_bot_config"}, {"$set": {f"custom_texts.{key}": text}}, upsert=True)
     
@@ -107,43 +111,22 @@ def get_forward_link(admin_message_id: int):
 def delete_forward_link(admin_message_id: int):
     forward_links_collection.delete_one({"_id": admin_message_id})
 
-# --- دوال الإحصائيات (تبقى كما هي) ---
+# --- دوال الإحصائيات ومكتبة المحتوى والقنوات (تبقى كما هي) ---
 def get_db_stats():
     try: db.command('ping'); is_connected = True
     except: is_connected = False
-    return {
-        "ok": is_connected,
-        "library_count": content_library_collection.count_documents({}),
-        "scheduled_count": scheduled_posts_collection.count_documents({"sent": False}),
-        "users_count": users_collection.count_documents({})
-    }
-
-# --- دوال مكتبة المحتوى ---
+    return { "ok": is_connected, "library_count": content_library_collection.count_documents({}), "scheduled_count": scheduled_posts_collection.count_documents({"sent": False}), "users_count": users_collection.count_documents({}) }
 def add_content_to_library(content_type: str, content_value: str) -> str:
-    content_hash = hashlib.sha256(content_value.encode()).hexdigest()
-    if not content_library_collection.find_one({"_id": content_hash}):
-        content_library_collection.insert_one({
-            "_id": content_hash, "type": content_type,
-            "value": content_value, "added_at": datetime.datetime.utcnow()
-        })
+    content_hash = hashlib.sha256(content_value.encode()).hexdigest();
+    if not content_library_collection.find_one({"_id": content_hash}): content_library_collection.insert_one({"_id": content_hash, "type": content_type, "value": content_value, "added_at": datetime.datetime.utcnow()});
     return content_hash
-
-def get_all_library_content(limit=20):
-    return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
-
-def delete_content_by_id(content_id: str):
-    content_library_collection.delete_one({"_id": content_id})
-
-# --- دوال القنوات ---
-def add_pending_channel(chat_id: int, title: str):
-    channels_collection.update_one(
-        {"_id": chat_id}, {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}}, upsert=True
-    )
-def approve_channel(chat_id: int):
-    channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
-def reject_channel(chat_id: int):
-    channels_collection.delete_one({"_id": chat_id})
-def get_pending_channels():
-    return list(channels_collection.find({"status": "pending"}))
-def get_approved_channels():
-    return list(channels_collection.find({"status": "approved"}))
+def get_all_library_content(limit=20): return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
+def delete_content_by_id(content_id: str): content_library_collection.delete_one({"_id": content_id})
+def add_pending_channel(chat_id: int, title: str): channels_collection.update_one( {"_id": chat_id}, {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}}, upsert=True)
+def approve_channel(chat_id: int): channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
+def reject_channel(chat_id: int): channels_collection.delete_one({"_id": chat_id})
+def get_pending_channels(): return list(channels_collection.find({"status": "pending"}))
+def get_approved_channels(): return list(channels_collection.find({"status": "approved"}))
+def get_due_scheduled_posts(): return list(scheduled_posts_collection.find({"send_at": {"$lte": datetime.datetime.utcnow()}, "sent": False}))
+def mark_post_as_sent(post_object_id): scheduled_posts_collection.update_one({"_id": post_object_id}, {"$set": {"sent": True}})
+def get_content_from_library(content_id: str): return content_library_collection.find_one({"_id": content_id})
