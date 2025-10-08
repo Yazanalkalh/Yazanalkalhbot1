@@ -92,7 +92,6 @@ def get_all_reminders() -> list:
     return get_setting("reminders", [])
 
 def get_channel_messages() -> list:
-    """✅ دالة جديدة: لجلب قائمة رسائل القناة القديمة من قاعدة البيانات."""
     return get_setting("channel_messages", [])
 
 def update_custom_text(key: str, text: str):
@@ -122,6 +121,7 @@ def add_content_to_library(content_type: str, content_value: str) -> str:
     return content_hash
 def get_all_library_content(limit=20): return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
 def delete_content_by_id(content_id: str): content_library_collection.delete_one({"_id": content_id})
+def get_content_from_library(content_id: str): return content_library_collection.find_one({"_id": content_id})
 def add_pending_channel(chat_id: int, title: str): channels_collection.update_one( {"_id": chat_id}, {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}}, upsert=True)
 def approve_channel(chat_id: int): channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
 def reject_channel(chat_id: int): channels_collection.delete_one({"_id": chat_id})
@@ -129,4 +129,3 @@ def get_pending_channels(): return list(channels_collection.find({"status": "pen
 def get_approved_channels(): return list(channels_collection.find({"status": "approved"}))
 def get_due_scheduled_posts(): return list(scheduled_posts_collection.find({"send_at": {"$lte": datetime.datetime.utcnow()}, "sent": False}))
 def mark_post_as_sent(post_object_id): scheduled_posts_collection.update_one({"_id": post_object_id}, {"$set": {"sent": True}})
-def get_content_from_library(content_id: str): return content_library_collection.find_one({"_id": content_id})
