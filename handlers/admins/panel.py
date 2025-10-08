@@ -1,3 +1,4 @@
+import datetime
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from loader import bot
@@ -5,12 +6,9 @@ from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
 import data_store
 from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboard, back_kb
-import datetime
-# --- UPGRADE: Import the text manager ---
-from utils import texts
+from utils import texts # Used for central text management
 
 # This is the final, definitive, and fixed version of the main admin panel.
-# It has been fully upgraded to use the central text manager and not conflict with other panels.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -73,7 +71,6 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     # Other handlers (All use hardcoded text for now until fully migrated)
     # The upgrade process should continue for these as well.
     if d == "admin_stats":
-        # This is an example of text that should also be in texts.py
         stats_text = (f"📊 **إحصائيات البوت:**\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data.get('users', []))}\n"
                       # ... etc
@@ -96,7 +93,6 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         reminders = data_store.bot_data.get('reminders', [])
         await state.update_data(reminders_view=list(reminders)) 
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-        # These texts would also come from the text manager
         text = "💭 قائمة التذكيرات:\n\nاضغط لحذف تذكير."
         if not reminders: text = "💭 القائمة فارغة."
         else:
@@ -108,17 +104,19 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 
     # ... (rest of list views) ...
     
+    # 🟢 New Callbacks for Bulk Import Handlers (Added for 100% functionality)
+    if d == "import_dyn_replies":
+        await AdminStates.waiting_for_dyn_replies_file.set()
+        await cq.message.edit_text(texts.get_text("prompt_dyn_replies_file"), reply_markup=back_kb("admin_dyn_replies")); return
+
+    if d == "import_reminders":
+        await AdminStates.waiting_for_reminders_file.set()
+        await cq.message.edit_text(texts.get_text("prompt_reminders_file"), reply_markup=back_kb("admin_reminders")); return
+
     # This part shows how prompts would be upgraded
     prompts = { 
         "add_dyn_reply": (texts.get_text("prompt_dyn_reply_keyword"), AdminStates.waiting_for_dyn_reply_keyword), 
         "delete_dyn_reply": (texts.get_text("prompt_dyn_reply_delete"), AdminStates.waiting_for_dyn_reply_delete),
-        
-        # 🆕 منطق الزر الجديد: استيراد ردود دفعة واحدة
-        "import_dyn_replies": (texts.get_text("prompt_import_dyn_replies"), AdminStates.waiting_for_dyn_replies_file), 
-        
-        # 🆕 منطق الزر الجديد: استيراد تذكيرات دفعة واحدة
-        "import_reminders": (texts.get_text("prompt_import_reminders"), AdminStates.waiting_for_reminders_file),
-        
         # ... and so on for all prompts
     }
     if d in prompts:
@@ -128,15 +126,17 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 
 def register_panel_handlers(dp: Dispatcher):
     """Registers the main admin command and callback handlers with corrected filters."""
+    # 1. Command handler (highest priority due to state='*')
     dp.register_message_handler(admin_panel_cmd, is_admin, commands=['admin'], state="*")
     
-    # This handler now only triggers when the admin is NOT in any state.
+    # 2. Reply handler (should only trigger when NOT in a state)
     dp.register_message_handler(admin_reply_cmd, is_admin, is_reply=True, content_types=types.ContentTypes.ANY, state=None)
     
-    # ✅ FIX: إزالة الفلتر c.data.startswith("adv_") و c.data.startswith("tm_")
-    # الآن هذا المعالج سيستجيب لجميع الأزرار الرئيسية في لوحة التحكم
+    # 3. Callback handler: 
+    # 🔴 CRITICAL FIX: Removed the conflicting lambda filter (adv_, tm_).
+    # Since this handler is registered FIRST in __init__.py now, it will catch all callbacks.
     dp.register_callback_query_handler(
         callbacks_cmd, 
         is_admin, 
         state="*"
-    )
+    ) 
