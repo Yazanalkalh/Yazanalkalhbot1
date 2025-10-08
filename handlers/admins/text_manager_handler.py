@@ -11,6 +11,10 @@ from utils.texts import get_text, get_all_text_descriptions
 class TextManagerStates(StatesGroup):
     waiting_for_new_text = State()
 
+# --- The "Mastermind" (Handlers) ---
+
+# --- THIS IS THE FIX ---
+# The function now correctly accepts the 'state' argument.
 async def text_manager_cmd(m: types.Message, state: FSMContext):
     """Handler for the /yazan command. Displays the text management interface."""
     if await state.get_state():
@@ -31,9 +35,6 @@ async def select_text_to_edit_handler(cq: types.CallbackQuery, state: FSMContext
     await state.update_data(text_key_to_edit=text_key)
     
     current_text = get_text(text_key)
-    
-    # --- THIS IS THE FIX ---
-    # The function call is now correct, using 'text_name' as the placeholder.
     prompt = get_text("text_manager_prompt_new", text_name=text_key, current_text=current_text)
     
     cancel_button = types.InlineKeyboardButton(get_text("action_cancelled"), callback_data="tm_cancel")
@@ -50,21 +51,27 @@ async def process_new_text_handler(m: types.Message, state: FSMContext):
     if text_key:
         data_store.bot_data.setdefault('custom_texts', {})[text_key] = new_text
         data_store.save_data()
-        # --- THIS IS THE FIX ---
         await m.reply(get_text("text_manager_success", text_name=text_key))
     
-    await state.finish()
-    await text_manager_cmd(m) # Show the main menu again
+    current_state = await state.get_state()
+    if current_state:
+        await state.finish()
+        
+    # --- THIS IS ALSO FIXED ---
+    # We now pass the state object to the command handler.
+    await text_manager_cmd(m, state)
 
 async def cancel_text_manager(cq: types.CallbackQuery, state: FSMContext):
     """Handles cancellation within the text manager."""
     await cq.answer()
-    await state.finish()
+    if await state.get_state():
+        await state.finish()
     await cq.message.delete()
     await cq.bot.send_message(cq.from_user.id, get_text("action_cancelled"))
 
+
 def register_text_manager_handler(dp: Dispatcher):
-    """Plugs in the new, isolated feature."""
+    """The function to "plug in" our new, isolated feature."""
     is_admin_filter = lambda msg: msg.from_user.id == ADMIN_CHAT_ID
 
     dp.register_message_handler(text_manager_cmd, is_admin_filter, commands=['yazan'], state="*")
