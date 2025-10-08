@@ -112,6 +112,13 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     prompts = { 
         "add_dyn_reply": (texts.get_text("prompt_dyn_reply_keyword"), AdminStates.waiting_for_dyn_reply_keyword), 
         "delete_dyn_reply": (texts.get_text("prompt_dyn_reply_delete"), AdminStates.waiting_for_dyn_reply_delete),
+        
+        # 🆕 منطق الزر الجديد: استيراد ردود دفعة واحدة
+        "import_dyn_replies": (texts.get_text("prompt_import_dyn_replies"), AdminStates.waiting_for_dyn_replies_file), 
+        
+        # 🆕 منطق الزر الجديد: استيراد تذكيرات دفعة واحدة
+        "import_reminders": (texts.get_text("prompt_import_reminders"), AdminStates.waiting_for_reminders_file),
+        
         # ... and so on for all prompts
     }
     if d in prompts:
@@ -126,10 +133,10 @@ def register_panel_handlers(dp: Dispatcher):
     # This handler now only triggers when the admin is NOT in any state.
     dp.register_message_handler(admin_reply_cmd, is_admin, is_reply=True, content_types=types.ContentTypes.ANY, state=None)
     
-    # This handler is now specific and won't steal callbacks from other panels.
+    # ✅ FIX: إزالة الفلتر c.data.startswith("adv_") و c.data.startswith("tm_")
+    # الآن هذا المعالج سيستجيب لجميع الأزرار الرئيسية في لوحة التحكم
     dp.register_callback_query_handler(
         callbacks_cmd, 
         is_admin, 
-        lambda c: not c.data.startswith("adv_") and not c.data.startswith("tm_"),
         state="*"
     )
