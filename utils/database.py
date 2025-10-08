@@ -13,7 +13,6 @@ try:
     settings_collection = db.get_collection("BotSettings")
     users_collection = db.get_collection("Users")
     forward_links_collection = db.get_collection("ForwardLinks")
-    # --- المجموعات الأخرى تبقى كما هي ---
     content_library_collection = db.get_collection("ContentLibrary")
     scheduled_posts_collection = db.get_collection("ScheduledPosts")
     channels_collection = db.get_collection("Channels")
@@ -37,9 +36,7 @@ def get_setting(setting_name: str, default_value=None):
 def update_setting(setting_name: str, value):
     try:
         settings_collection.update_one(
-            {"_id": "main_bot_config"},
-            {"$set": {setting_name: value}},
-            upsert=True
+            {"_id": "main_bot_config"}, {"$set": {setting_name: value}}, upsert=True
         )
     except Exception as e:
         print(f"DB SETTING UPDATE ERROR for '{setting_name}': {e}")
@@ -112,11 +109,8 @@ def delete_forward_link(admin_message_id: int):
 
 # --- دوال الإحصائيات (تبقى كما هي) ---
 def get_db_stats():
-    try:
-        db.command('ping')
-        is_connected = True
-    except:
-        is_connected = False
+    try: db.command('ping'); is_connected = True
+    except: is_connected = False
     return {
         "ok": is_connected,
         "library_count": content_library_collection.count_documents({}),
@@ -124,9 +118,8 @@ def get_db_stats():
         "users_count": users_collection.count_documents({})
     }
 
-# --- بقية الدوال (تبقى كما هي) ---
+# --- دوال مكتبة المحتوى ---
 def add_content_to_library(content_type: str, content_value: str) -> str:
-    # ... (الكود الأصلي هنا)
     content_hash = hashlib.sha256(content_value.encode()).hexdigest()
     if not content_library_collection.find_one({"_id": content_hash}):
         content_library_collection.insert_one({
@@ -134,4 +127,23 @@ def add_content_to_library(content_type: str, content_value: str) -> str:
             "value": content_value, "added_at": datetime.datetime.utcnow()
         })
     return content_hash
-# ... (أكمل بقية الدوال الأصلية في ملفك هنا)
+
+def get_all_library_content(limit=20):
+    return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
+
+def delete_content_by_id(content_id: str):
+    content_library_collection.delete_one({"_id": content_id})
+
+# --- دوال القنوات ---
+def add_pending_channel(chat_id: int, title: str):
+    channels_collection.update_one(
+        {"_id": chat_id}, {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}}, upsert=True
+    )
+def approve_channel(chat_id: int):
+    channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
+def reject_channel(chat_id: int):
+    channels_collection.delete_one({"_id": chat_id})
+def get_pending_channels():
+    return list(channels_collection.find({"status": "pending"}))
+def get_approved_channels():
+    return list(channels_collection.find({"status": "approved"}))
