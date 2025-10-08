@@ -8,7 +8,7 @@ from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboa
 import datetime
 
 # This is the final, definitive, and fixed version of the main admin panel.
-# The handlers have been corrected to not interfere with other admin panels or FSM states.
+# It contains the complete logic for all its buttons and is corrected to not interfere with other panels.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -97,7 +97,6 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 
     if d == "show_reminders":
         reminders = data_store.bot_data.get('reminders', [])
-        await state.update_data(reminders_view=list(reminders)) # Store a copy for safe deletion
         keyboard = types.InlineKeyboardMarkup(row_width=1)
         text = "💭 **قائمة التذكيرات:**\n\nاضغط لحذف تذكير."
         if not reminders: text = "💭 **القائمة فارغة.**"
@@ -175,7 +174,7 @@ def register_panel_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(
         callbacks_cmd, 
         is_admin, 
-        # This lambda ensures this handler only catches callbacks that DO NOT belong to the advanced panels.
+        # This lambda ensures this handler only catches callbacks that DO NOT belong to other panels.
         lambda c: not c.data.startswith("adv_") and not c.data.startswith("tm_"),
         state="*"
     )
