@@ -6,7 +6,7 @@ from config import ADMIN_CHAT_ID
 # --- Correctly import from the central dictionary ---
 from utils.texts import get_text, get_all_text_descriptions
 
-# This is the final, definitive, and isolated file for the Royal Text Manager.
+# This is the final, definitive, and corrected version of the Royal Text Manager.
 
 class TextManagerStates(StatesGroup):
     waiting_for_new_text = State()
@@ -17,11 +17,8 @@ async def text_manager_cmd(m: types.Message, state: FSMContext):
         await state.finish()
         
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    
-    # Get the list of (key, description) tuples
     all_texts = get_all_text_descriptions()
     
-    # Create a button for each text, using the Arabic description
     for key, description in all_texts:
         keyboard.add(types.InlineKeyboardButton(f"✏️ {description}", callback_data=f"tm_edit_{key}"))
         
@@ -33,11 +30,11 @@ async def select_text_to_edit_handler(cq: types.CallbackQuery, state: FSMContext
     text_key = cq.data.replace("tm_edit_", "")
     await state.update_data(text_key_to_edit=text_key)
     
-    # Get the current text (either custom or default)
     current_text = get_text(text_key)
     
-    # Get the prompt text and format it with the key and current text
-    prompt = get_text("text_manager_prompt_new", key=text_key, current_text=current_text)
+    # --- THIS IS THE FIX ---
+    # The function call is now correct, using 'text_name' as the placeholder.
+    prompt = get_text("text_manager_prompt_new", text_name=text_key, current_text=current_text)
     
     cancel_button = types.InlineKeyboardButton(get_text("action_cancelled"), callback_data="tm_cancel")
     
@@ -53,7 +50,8 @@ async def process_new_text_handler(m: types.Message, state: FSMContext):
     if text_key:
         data_store.bot_data.setdefault('custom_texts', {})[text_key] = new_text
         data_store.save_data()
-        await m.reply(get_text("text_manager_success", key=text_key))
+        # --- THIS IS THE FIX ---
+        await m.reply(get_text("text_manager_success", text_name=text_key))
     
     await state.finish()
     await text_manager_cmd(m) # Show the main menu again
@@ -63,7 +61,6 @@ async def cancel_text_manager(cq: types.CallbackQuery, state: FSMContext):
     await cq.answer()
     await state.finish()
     await cq.message.delete()
-    # Send a new message because the old one is deleted
     await cq.bot.send_message(cq.from_user.id, get_text("action_cancelled"))
 
 def register_text_manager_handler(dp: Dispatcher):
