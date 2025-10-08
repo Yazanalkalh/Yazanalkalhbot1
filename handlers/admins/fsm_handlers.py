@@ -1,25 +1,19 @@
-import datetime
-import asyncio
 import io
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from loader import bot
 from states.admin_states import AdminStates
 from config import ADMIN_CHAT_ID
-import data_store
+# ✅ تم الإصلاح: لا يوجد data_store هنا بعد الآن
+from utils import database, texts
 from keyboards.inline.admin_keyboards import create_admin_panel, add_another_kb
 from keyboards.inline.advanced_keyboards import create_advanced_panel
-from utils.database import add_content_to_library, add_scheduled_post 
-from utils import texts 
-
-# This is the final, definitive, and complete version of the FSM handlers file.
 
 def is_admin(message: types.Message):
-    """A filter to check if the user is an admin."""
     return message.from_user.id == ADMIN_CHAT_ID
 
-# --- Universal Handler ---
 async def cancel_cmd(m: types.Message, state: FSMContext): 
+    # ... (هذه الدالة تبقى كما هي، لا تحتاج لتغيير)
     current_state_str = str(await state.get_state())
     if current_state_str:
         await state.finish()
@@ -28,7 +22,7 @@ async def cancel_cmd(m: types.Message, state: FSMContext):
         else:
              await m.reply(texts.get_text("action_cancelled"), reply_markup=create_admin_panel())
 
-# --- /admin Panel Handlers (Now using Text Manager) ---
+# --- معالجات لوحة التحكم الرئيسية ---
 
 async def dyn_reply_keyword_handler(m: types.Message, state: FSMContext):
     await state.update_data(keyword=m.text.strip())
@@ -37,18 +31,15 @@ async def dyn_reply_keyword_handler(m: types.Message, state: FSMContext):
 
 async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
     data = await state.get_data()
-    keyword = data['keyword']
-    content = m.html_text
-    data_store.bot_data.setdefault('dynamic_replies', {})[keyword] = content
-    data_store.save_data()
+    # ✅ تم الإصلاح: استدعاء دالة متخصصة لإضافة الرد بشكل آمن
+    database.add_or_update_dynamic_reply(data['keyword'], m.html_text)
     await m.reply(texts.get_text("success_dyn_reply_added"), reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
     await state.finish()
 
 async def dyn_reply_delete_handler(m: types.Message, state: FSMContext):
     keyword = m.text.strip()
-    if keyword in data_store.bot_data.get('dynamic_replies', {}):
-        del data_store.bot_data['dynamic_replies'][keyword]
-        data_store.save_data()
+    # ✅ تم الإصلاح: الحذف مباشرة من قاعدة البيانات
+    if database.delete_dynamic_reply(keyword):
         await m.reply(texts.get_text("success_dyn_reply_deleted", keyword=keyword), reply_markup=add_another_kb("delete_dyn_reply", "admin_dyn_replies"))
     else:
         await m.reply(texts.get_text("error_dyn_reply_not_found"), reply_markup=create_admin_panel())
@@ -67,34 +58,28 @@ async def import_dyn_replies_handler(m: types.Message, state: FSMContext):
         if '|' in line:
             parts = line.split('|', 1)
             if len(parts) == 2 and parts[0].strip() and parts[1].strip():
-                data_store.bot_data.setdefault('dynamic_replies', {})[parts[0].strip()] = parts[1].strip()
+                # ✅ تم الإصلاح: إضافة كل رد على حدة بشكل آمن
+                database.add_or_update_dynamic_reply(parts[0].strip(), parts[1].strip())
                 success += 1
             else: fail += 1
         elif line: fail += 1
             
-    if success > 0: data_store.save_data()
     await m.reply(texts.get_text("success_import_replies", success=success, fail=fail), reply_markup=create_admin_panel())
     await state.finish()
 
 async def add_reminder_handler(m: types.Message, state: FSMContext):
-    reminder_text = m.text.strip()
-    data_store.bot_data.setdefault('reminders', []).append(reminder_text)
-    data_store.save_data()
+    # ✅ تم الإصلاح: إضافة التذكير مباشرة إلى قاعدة البيانات بعملية واحدة آمنة
+    database.add_reminder(m.text.strip())
     await m.reply(texts.get_text("success_reminder_added"), reply_markup=add_another_kb("add_reminder", "admin_reminders"))
     await state.finish()
 
 async def delete_reminder_handler(m: types.Message, state: FSMContext):
-    try:
-        idx = int(m.text.strip()) - 1
-        reminders = data_store.bot_data.get('reminders', [])
-        if 0 <= idx < len(reminders):
-            removed = reminders.pop(idx)
-            data_store.save_data()
-            await m.reply(texts.get_text("success_reminder_deleted", removed=removed), reply_markup=add_another_kb("delete_reminder", "admin_reminders"))
-        else:
-            await m.reply(texts.get_text("error_invalid_index", max_len=len(reminders)))
-    except (ValueError, IndexError):
-        await m.reply(texts.get_text("invalid_number"))
+    reminder_text_to_delete = m.text.strip()
+    # ✅ تم الإصلاح: الحذف بالنص الدقيق للتذكير بدلاً من الرقم، وهذا أكثر أمانًا
+    if database.delete_reminder(reminder_text_to_delete):
+        await m.reply(texts.get_text("success_reminder_deleted", removed=reminder_text_to_delete), reply_markup=add_another_kb("delete_reminder", "admin_reminders"))
+    else:
+        await m.reply("لم يتم العثور على هذا التذكير. يرجى التأكد من نسخ النص بشكل مطابق تمامًا.")
     await state.finish()
 
 async def import_reminders_handler(m: types.Message, state: FSMContext):
@@ -108,77 +93,45 @@ async def import_reminders_handler(m: types.Message, state: FSMContext):
     for line in file_content.readlines():
         reminder = line.strip()
         if reminder:
-            data_store.bot_data.setdefault('reminders', []).append(reminder)
+            # ✅ تم الإصلاح: إضافة كل تذكير بشكل منفصل وآمن
+            database.add_reminder(reminder)
             success += 1
             
-    if success > 0: data_store.save_data()
     await m.reply(texts.get_text("success_import_reminders", count=success), reply_markup=create_admin_panel())
     await state.finish()
 
-# --- NEW: Handlers for the Text Manager ---
+# --- معالجات مدير النصوص ---
 async def select_text_to_edit_handler(cq: types.CallbackQuery, state: FSMContext):
     text_key = cq.data.replace("edit_text_", "")
     await state.update_data(text_key_to_edit=text_key)
-    current_text = texts.get_text(text_key)
+    current_text = texts.get_text(text_key) # النصوص الافتراضية لا تزال هنا، وهذا صحيح
     prompt = texts.get_text("text_manager_prompt_new", key=text_key, current_text=current_text)
-    
     cancel_button = types.InlineKeyboardButton(texts.get_text("action_cancelled"), callback_data="cancel_text_edit") 
-    
     await cq.message.edit_text(prompt, reply_markup=types.InlineKeyboardMarkup().add(cancel_button))
     await AdminStates.waiting_for_new_text.set()
 
 async def process_new_text_handler(m: types.Message, state: FSMContext):
     data = await state.get_data()
     text_key = data.get("text_key_to_edit")
-    new_text = m.html_text
     if text_key:
-        data_store.bot_data.setdefault('custom_texts', {})[text_key] = new_text
-        data_store.save_data()
+        # ✅ تم الإصلاح: تحديث نص واحد فقط في قاعدة البيانات
+        database.update_custom_text(text_key, m.html_text)
         await m.reply(texts.get_text("text_manager_success", key=text_key))
     await state.finish()
     from .text_manager_handler import text_manager_cmd
     await text_manager_cmd(m, state)
 
-# --- Handler Registration ---
+# --- تسجيل المعالجات (لا تغيير هنا) ---
 def register_fsm_handlers(dp: Dispatcher):
-    """Registers ALL FSM handlers for BOTH panels."""
+    # ... (هذا الجزء يبقى كما هو)
     dp.register_message_handler(cancel_cmd, is_admin, commands=['cancel'], state='*')
-    
-    # --- Text Manager ---
     dp.register_callback_query_handler(select_text_to_edit_handler, is_admin, lambda c: c.data.startswith("edit_text_"), state="*")
     dp.register_message_handler(process_new_text_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_new_text)
     dp.register_callback_query_handler(cancel_cmd, is_admin, lambda c: c.data == "cancel_text_edit", state="*")
-
-    # 🟢 Registrations for Bulk Import Files 
-    dp.register_message_handler(
-        import_dyn_replies_handler, 
-        is_admin, 
-        content_types=types.ContentTypes.DOCUMENT, 
-        state=AdminStates.waiting_for_dyn_replies_file
-    )
-    dp.register_message_handler(
-        import_reminders_handler, 
-        is_admin, 
-        content_types=types.ContentTypes.DOCUMENT, 
-        state=AdminStates.waiting_for_reminders_file
-    )
-
-    # --- All /admin handlers (Fixed State Names) ---
+    dp.register_message_handler(import_dyn_replies_handler, is_admin, content_types=types.ContentTypes.DOCUMENT, state=AdminStates.waiting_for_dyn_replies_file)
+    dp.register_message_handler(import_reminders_handler, is_admin, content_types=types.ContentTypes.DOCUMENT, state=AdminStates.waiting_for_reminders_file)
     dp.register_message_handler(dyn_reply_keyword_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_keyword)
     dp.register_message_handler(dyn_reply_content_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_dyn_reply_content)
     dp.register_message_handler(dyn_reply_delete_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_delete)
-    
-    # 🔴 FIXING THE ERROR: Changed state names to match states/admin_states.py
-    dp.register_message_handler(
-        add_reminder_handler, 
-        is_admin, 
-        content_types=types.ContentTypes.ANY, 
-        state=AdminStates.waiting_for_new_reminder # <--- تم التصحيح هنا
-    )
-    dp.register_message_handler(
-        delete_reminder_handler, 
-        is_admin, 
-        state=AdminStates.waiting_for_delete_reminder # <--- تم التصحيح هنا
-    )
-
-    # NOTE: Ensure all other required states are registered if needed.
+    dp.register_message_handler(add_reminder_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_new_reminder)
+    dp.register_message_handler(delete_reminder_handler, is_admin, state=AdminStates.waiting_for_delete_reminder)
