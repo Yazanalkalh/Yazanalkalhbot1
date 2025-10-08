@@ -1,20 +1,12 @@
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import data_store
-from utils.helpers import forward_to_admin
+# ✅ تم الإصلاح: لا يوجد data_store هنا بعد الآن
+from utils import database, texts, helpers
 from keyboards.inline.user_keyboards import create_user_buttons
-import datetime
 from config import ADMIN_CHAT_ID
 from loader import bot
 import hashlib
-# --- NEW: Import the text manager ---
-from utils import texts
-
-# This is the final, definitive version of the "Security Guard".
-# It now uses the central text manager for all its replies.
-
-last_message_fingerprints = {}
 
 def get_message_fingerprint(message: types.Message) -> str:
     """Creates a unique fingerprint for a message to detect duplicates."""
@@ -26,19 +18,23 @@ def is_not_admin(message: types.Message):
     return message.from_user.id != ADMIN_CHAT_ID
 
 async def message_handler(message: types.Message, state: FSMContext):
-    """Handler for all other user messages with advanced security checks."""
+    """Handler for all other user messages with direct database checks."""
     user_id = message.from_user.id
-    settings = data_store.bot_data.get('bot_settings', {})
 
     # --- 1. Maintenance Mode Check ---
-    if settings.get('maintenance_mode', False):
-        # UPGRADED: Uses the text manager
+    # ✅ تم الإصلاح: جلب إعداد واحد فقط وبشكل مباشر من قاعدة البيانات
+    if database.get_setting("maintenance_mode", False):
         await message.reply(texts.get_text("user_maintenance_mode"))
         return
+        
+    # --- 2. Banned User Check ---
+    # ✅ تم الإصلاح: فحص سريع ومباشر من قاعدة البيانات
+    if database.is_user_banned(user_id):
+        return # تجاهل المستخدم المحظور بصمت
 
-    # --- 2. Forced Subscription Check ---
-    if settings.get('force_subscribe', False):
-        channel_id = settings.get('force_channel_id')
+    # --- 3. Forced Subscription Check ---
+    if database.get_setting("force_subscribe", False):
+        channel_id = database.get_setting("force_channel_id")
         if channel_id:
             try:
                 member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
@@ -46,36 +42,36 @@ async def message_handler(message: types.Message, state: FSMContext):
                     channel_info = await bot.get_chat(channel_id)
                     invite_link = await channel_info.export_invite_link() if not channel_info.invite_link else channel_info.invite_link
                     keyboard = InlineKeyboardMarkup().add(InlineKeyboardButton("🔗 اضغط هنا للاشتراك", url=invite_link))
-                    # UPGRADED: Uses the text manager
                     await message.reply(texts.get_text("user_force_subscribe"), reply_markup=keyboard)
                     return
             except Exception as e:
                 print(f"Force Subscribe Error: {e}")
 
-    # --- 3. Media Type Check ---
-    allowed_media = settings.get('allowed_media_types', ['text'])
+    # --- 4. Media Type Check ---
+    allowed_media = database.get_setting('allowed_media_types', ['text'])
     if message.content_type not in allowed_media:
-        # This text is already managed by a key in the /admin panel, which is good
-        reject_message = settings.get('media_reject_message', "عذرًا، هذا النوع من الرسائل غير مسموح به.")
+        reject_message = database.get_setting('media_reject_message', "عذرًا، هذا النوع من الرسائل غير مسموح به.")
         await message.reply(reject_message)
         return
 
-    # --- 4. Anti-Duplicate Message Check ---
-    if settings.get('anti_duplicate_mode', False):
+    # --- 5. Anti-Duplicate Message Check (Now Persistent) ---
+    if database.get_setting('anti_duplicate_mode', False):
         fingerprint = get_message_fingerprint(message)
-        if last_message_fingerprints.get(user_id) == fingerprint:
-            return # Silently ignore
-        last_message_fingerprints[user_id] = fingerprint
+        # ✅ تم الإصلاح: نقارن مع البصمة المحفوظة في قاعدة البيانات
+        if database.get_user_last_fingerprint(user_id) == fingerprint:
+            return # تجاهل بصمت
+        # ✅ تم الإصلاح: نقوم بتحديث البصمة في قاعدة البيانات
+        database.update_user_last_fingerprint(user_id, fingerprint)
 
-    # --- Existing Logic ---
-    if user_id in data_store.bot_data.get('banned_users', []): return
-
-    if message.text and message.text.strip() in data_store.bot_data.get('dynamic_replies', {}):
-        await message.reply(data_store.bot_data['dynamic_replies'][message.text.strip()], reply_markup=create_user_buttons())
+    # --- 6. Dynamic Replies Check ---
+    # ✅ تم الإصلاح: بحث مباشر عن الرد في قاعدة البيانات
+    dynamic_reply = database.get_dynamic_reply(message.text)
+    if dynamic_reply:
+        await message.reply(dynamic_reply, reply_markup=create_user_buttons())
         return
 
-    await forward_to_admin(message)
-    # UPGRADED: Uses the text manager
+    # --- Default Action: Forward to Admin ---
+    await helpers.forward_to_admin(message)
     await message.reply(texts.get_text("user_default_reply"), reply_markup=create_user_buttons())
 
 def register_message_handler(dp: Dispatcher):
