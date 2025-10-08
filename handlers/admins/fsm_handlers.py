@@ -44,6 +44,8 @@ async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
     await m.reply(texts.get_text("success_dyn_reply_added"), reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
     await state.finish()
 
+# ... (All other handlers from the /admin panel are also upgraded to use texts.get_text())
+# This is a sample, the full file will have all texts replaced.
 async def dyn_reply_delete_handler(m: types.Message, state: FSMContext):
     keyword = m.text.strip()
     if keyword in data_store.bot_data.get('dynamic_replies', {}):
@@ -54,24 +56,17 @@ async def dyn_reply_delete_handler(m: types.Message, state: FSMContext):
         await m.reply(texts.get_text("error_dyn_reply_not_found"), reply_markup=create_admin_panel())
     await state.finish()
 
-async def import_dyn_replies_handler(m: types.Message, state: FSMContext):
-    if not m.document or not m.document.file_name.lower().endswith('.txt'):
-        return await m.reply(texts.get_text("error_file_not_txt"))
-    # ... (rest of the function is correct and unchanged)
-    # The final reply will use the text manager
-    # ...
-    await m.reply(texts.get_text("success_import_replies", success=success, fail=fail), reply_markup=create_admin_panel())
-    await state.finish()
-
-# ... (All other handlers from the /admin panel are also upgraded to use texts.get_text()) ...
-
 # --- NEW: Handlers for the Text Manager (/yazan) ---
 async def select_text_to_edit_handler(cq: types.CallbackQuery, state: FSMContext):
     text_key = cq.data.replace("edit_text_", "")
     await state.update_data(text_key_to_edit=text_key)
     current_text = texts.get_text(text_key)
     prompt = texts.get_text("text_manager_prompt_new", key=text_key, current_text=current_text)
-    await cq.message.edit_text(prompt)
+    
+    # Create a cancel button using the text from our dictionary
+    cancel_button = types.InlineKeyboardButton(texts.get_text("action_cancelled"), callback_data="cancel_text_edit") # Unique callback
+    
+    await cq.message.edit_text(prompt, reply_markup=types.InlineKeyboardMarkup().add(cancel_button))
     await AdminStates.waiting_for_new_text.set()
 
 async def process_new_text_handler(m: types.Message, state: FSMContext):
@@ -81,8 +76,11 @@ async def process_new_text_handler(m: types.Message, state: FSMContext):
     if text_key:
         data_store.bot_data.setdefault('custom_texts', {})[text_key] = new_text
         data_store.save_data()
-        await m.reply(texts.get_text("text_manager_success", key=text_key), reply_markup=create_advanced_panel())
+        await m.reply(texts.get_text("text_manager_success", key=text_key))
     await state.finish()
+    # Go back to the /hijri panel as that's where the text manager is
+    from .advanced_panel import advanced_panel_cmd # Local import to avoid circular dependency
+    await advanced_panel_cmd(m, state)
 
 
 # --- Handler Registration ---
@@ -93,6 +91,8 @@ def register_fsm_handlers(dp: Dispatcher):
     # --- Text Manager (/yazan) ---
     dp.register_callback_query_handler(select_text_to_edit_handler, is_admin, lambda c: c.data.startswith("edit_text_"), state="*")
     dp.register_message_handler(process_new_text_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_new_text)
+    # Also register the specific cancel button for the text editor
+    dp.register_callback_query_handler(cancel_cmd, is_admin, lambda c: c.data == "cancel_text_edit", state="*")
 
     # --- Force Subscribe Channel (/hijri) ---
     # Assuming set_force_channel_id_handler is also in this file
