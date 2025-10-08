@@ -3,7 +3,8 @@ from config import MONGO_URI
 import hashlib
 import datetime
 
-# هذا الملف هو النسخة الكاملة والنهائية لمدير قاعدة البيانات
+# هذا هو الإصدار النهائي والكامل لمدير قاعدة البيانات.
+# قم بنسخ هذا الملف بالكامل واستبدال الملف القديم لديك.
 
 try:
     client = MongoClient(MONGO_URI)
@@ -22,17 +23,13 @@ except Exception as e:
     exit(1)
 
 # --- دوال الإعدادات ---
-def get_all_settings():
-    settings_doc = settings_collection.find_one({"_id": "main_bot_config"})
-    return settings_doc if settings_doc else {}
-
-def get_setting(setting_name: str, default_value=None):
+async def get_setting(setting_name: str, default_value=None):
     settings_doc = settings_collection.find_one({"_id": "main_bot_config"}, {setting_name: 1})
     if settings_doc and setting_name in settings_doc:
         return settings_doc[setting_name]
     return default_value
 
-def update_setting(setting_name: str, value):
+async def update_setting(setting_name: str, value):
     try:
         settings_collection.update_one(
             {"_id": "main_bot_config"}, {"$set": {setting_name: value}}, upsert=True
@@ -41,72 +38,77 @@ def update_setting(setting_name: str, value):
         print(f"DB SETTING UPDATE ERROR for '{setting_name}': {e}")
 
 # --- دوال المستخدمين ---
-def add_user(user_id: int, full_name: str, username: str):
+async def add_user(user_id: int, full_name: str, username: str):
     users_collection.update_one(
         {"_id": user_id},
         {
             "$set": {"full_name": full_name, "username": username, "last_seen": datetime.datetime.utcnow()},
+            # ✅ تحسين: نضمن أن المستخدم الجديد غير محظور افتراضيًا
             "$setOnInsert": {"is_banned": False, "last_message_fingerprint": None}
         },
         upsert=True
     )
 
-def is_user_banned(user_id: int) -> bool:
+async def is_user_banned(user_id: int) -> bool:
+    """✅ دالة جديدة: تتحقق مما إذا كان المستخدم محظورًا مباشرة من قاعدة البيانات."""
     user = users_collection.find_one({"_id": user_id}, {"is_banned": 1})
+    # إذا لم يتم العثور على المستخدم أو الحقل، نعتبره غير محظور كإجراء وقائي
     return user.get("is_banned", False) if user else False
+    
+async def ban_user(user_id: int, status: bool = True):
+    """✅ دالة جديدة: تقوم بحظر أو إلغاء حظر مستخدم."""
+    users_collection.update_one({"_id": user_id}, {"$set": {"is_banned": status}}, upsert=True)
 
-def get_user_last_fingerprint(user_id: int) -> str or None:
+
+async def get_user_last_fingerprint(user_id: int) -> str or None:
     user = users_collection.find_one({"_id": user_id}, {"last_message_fingerprint": 1})
     return user.get("last_message_fingerprint") if user else None
 
-def update_user_last_fingerprint(user_id: int, fingerprint: str):
+async def update_user_last_fingerprint(user_id: int, fingerprint: str):
     users_collection.update_one({"_id": user_id}, {"$set": {"last_message_fingerprint": fingerprint}})
 
 # --- دوال المحتوى المتنوع ---
-def get_dynamic_reply(text: str) -> str or None:
+async def get_dynamic_reply(text: str) -> str or None:
     if not text: return None
-    reply_data = settings_collection.find_one({"_id": "main_bot_config"}, {f"dynamic_replies.{text}": 1})
-    if reply_data and "dynamic_replies" in reply_data:
-        return reply_data["dynamic_replies"].get(text)
-    return None
+    return await get_setting(f"dynamic_replies.{text}")
 
-def add_or_update_dynamic_reply(keyword: str, content: str):
-    settings_collection.update_one({"_id": "main_bot_config"}, {"$set": {f"dynamic_replies.{keyword}": content}}, upsert=True)
+async def add_or_update_dynamic_reply(keyword: str, content: str):
+    await update_setting(f"dynamic_replies.{keyword}", content)
 
-def delete_dynamic_reply(keyword: str) -> bool:
+async def delete_dynamic_reply(keyword: str) -> bool:
     result = settings_collection.update_one({"_id": "main_bot_config"}, {"$unset": {f"dynamic_replies.{keyword}": ""}})
     return result.modified_count > 0
 
-def get_all_dynamic_replies() -> dict:
-    return get_setting("dynamic_replies", {})
+async def get_all_dynamic_replies() -> dict:
+    return await get_setting("dynamic_replies", {})
 
-def add_reminder(reminder_text: str):
+async def add_reminder(reminder_text: str):
     settings_collection.update_one({"_id": "main_bot_config"}, {"$addToSet": {"reminders": reminder_text}})
 
-def delete_reminder(reminder_text: str) -> bool:
+async def delete_reminder(reminder_text: str) -> bool:
     result = settings_collection.update_one({"_id": "main_bot_config"}, {"$pull": {"reminders": reminder_text}})
     return result.modified_count > 0
 
-def get_all_reminders() -> list:
-    return get_setting("reminders", [])
+async def get_all_reminders() -> list:
+    return await get_setting("reminders", [])
 
-def get_channel_messages() -> list:
-    return get_setting("channel_messages", [])
+async def get_channel_messages() -> list:
+    return await get_setting("channel_messages", [])
 
-def update_custom_text(key: str, text: str):
-    settings_collection.update_one({"_id": "main_bot_config"}, {"$set": {f"custom_texts.{key}": text}}, upsert=True)
+async def update_custom_text(key: str, text: str):
+    await update_setting(f"custom_texts.{key}", text)
     
 # --- دوال روابط الرسائل المحولة ---
-def log_forward_link(admin_message_id: int, user_id: int, original_message_id: int):
+async def log_forward_link(admin_message_id: int, user_id: int, original_message_id: int):
     forward_links_collection.insert_one({
         "_id": admin_message_id, "user_id": user_id,
         "original_message_id": original_message_id, "created_at": datetime.datetime.utcnow()
     })
 
-def get_forward_link(admin_message_id: int):
+async def get_forward_link(admin_message_id: int):
     return forward_links_collection.find_one({"_id": admin_message_id})
 
-def delete_forward_link(admin_message_id: int):
+async def delete_forward_link(admin_message_id: int):
     forward_links_collection.delete_one({"_id": admin_message_id})
 
 # --- دوال الإحصائيات ومكتبة المحتوى والقنوات (تبقى كما هي) ---
