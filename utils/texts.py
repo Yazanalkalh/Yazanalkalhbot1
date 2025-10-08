@@ -1,7 +1,7 @@
 import data_store
 
 # This is the final, definitive version of the "Smart Dictionary".
-# It contains user-friendly descriptions and placeholders for dynamic text.
+# The placeholder in 'text_manager_prompt_new' has been corrected to avoid conflict.
 
 TEXTS = {
     # Key: { "description": "Arabic Label for the button", "default": "The actual text with placeholders" }
@@ -9,15 +9,11 @@ TEXTS = {
     # --- General UI & Actions ---
     "action_cancelled": {
         "description": "رسالة إلغاء العملية",
-        "default": "✅ تم إلغاء العملية."
+        "default": "✅ تم إلغاء العملية بنجاح."
     },
     "back_to_main_panel": {
         "description": "نص زر العودة للوحة الرئيسية",
         "default": "🔙 العودة إلى اللوحة الرئيسية"
-    },
-    "back_to_advanced_panel": {
-        "description": "نص زر العودة للوحة المتقدمة",
-        "default": "🔙 العودة للوحة المتقدمة"
     },
     
     # --- User-Facing Messages ---
@@ -51,11 +47,12 @@ TEXTS = {
     },
     "text_manager_prompt_new": {
         "description": "رسالة طلب النص الجديد (لا تعدل هذا)",
-        "default": "النص الحالي لـ `{key}` هو:\n`{current_text}`\n\nأرسل الآن النص الجديد:"
+        # --- THE FIX IS HERE ---
+        "default": "النص الحالي لـ `{text_name}` هو:\n`{current_text}`\n\nأرسل الآن النص الجديد:"
     },
     "text_manager_success": {
         "description": "رسالة نجاح تحديث النص",
-        "default": "✅ تم تحديث النص `{key}` بنجاح."
+        "default": "✅ تم تحديث النص `{text_name}` بنجاح."
     },
 }
 
