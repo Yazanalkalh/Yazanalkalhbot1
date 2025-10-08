@@ -1,9 +1,10 @@
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# This is the final, definitive list of all possible states for BOTH control panels.
+# This is the final, definitive, and complete list of all states.
+# It now includes the missing state for the text manager.
 
 class AdminStates(StatesGroup):
-    # /admin panel states
+    # Dynamic Replies & Reminders (from /admin panel)
     waiting_for_dyn_reply_keyword = State()
     waiting_for_dyn_reply_content = State()
     waiting_for_dyn_reply_delete = State()
@@ -49,5 +50,9 @@ class AdminStates(StatesGroup):
     # Memory Management (from /admin panel)
     waiting_for_clear_user_id = State()
 
-    # --- NEW: State for the Advanced Panel (/hijri) ---
+    # State for the Advanced Panel (/hijri)
     waiting_for_force_channel_id = State()
+    
+    # --- THIS IS THE FIX ---
+    # The missing state for the text manager feature.
+    waiting_for_new_text = State()
