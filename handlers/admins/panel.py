@@ -8,7 +8,7 @@ from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboa
 import datetime
 
 # This is the final, definitive, and fixed version of the main admin panel.
-# The admin_reply_cmd handler has been corrected to not interfere with FSM states.
+# The handlers have been corrected to not interfere with other admin panels or FSM states.
 
 def is_admin(message: types.Message):
     """A filter to check if the user is an admin."""
@@ -32,7 +32,7 @@ async def admin_reply_cmd(m: types.Message, state: FSMContext):
             await m.reply(f"❌ **فشل إرسال الرد:** {e}")
 
 async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
-    """Central handler for all admin callback queries."""
+    """Central handler for the main /admin panel callback queries."""
     await cq.answer()
     if await state.get_state() is not None:
         await state.finish()
@@ -43,23 +43,17 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "close_panel": await cq.message.delete(); return
     if d == "back_to_main": await cq.message.edit_text("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel()); return
     
-    # --- UPGRADED: Interactive List Deletion ---
-    # This block handles deletion callbacks from the interactive lists.
+    # Interactive List Deletion
     if d.startswith("del_reminder_"):
-        # This logic is now safer with state check
-        data = await state.get_data()
-        reminders_list = data.get('reminders_view', [])
         idx = int(d.split('_')[-1])
-        if 0 <= idx < len(reminders_list):
-            reminder_to_delete = reminders_list.pop(idx)
-            # Find and remove the actual reminder from the main data
-            if reminder_to_delete in data_store.bot_data.get('reminders', []):
-                data_store.bot_data['reminders'].remove(reminder_to_delete)
-                data_store.save_data()
-                await cq.answer("✅ تم الحذف بنجاح.")
-                # Refresh the list view
-                cq.data = "show_reminders"
-                await callbacks_cmd(cq, state)
+        reminders = data_store.bot_data.get('reminders', [])
+        if 0 <= idx < len(reminders):
+            reminders.pop(idx)
+            data_store.save_data()
+            await cq.answer("✅ تم الحذف بنجاح.")
+            # Refresh the list view
+            cq.data = "show_reminders"
+            await callbacks_cmd(cq, state)
         return
 
     if d.startswith("del_dyn_reply_"):
@@ -73,7 +67,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
             await callbacks_cmd(cq, state)
         return
         
-    # --- Other handlers remain the same ---
+    # Other handlers
     if d == "admin_stats":
         stats_text = (f"📊 **إحصائيات البوت:**\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data.get('users', []))}\n"
@@ -173,6 +167,15 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 def register_panel_handlers(dp: Dispatcher):
     """Registers the main admin command and callback handlers."""
     dp.register_message_handler(admin_panel_cmd, is_admin, commands=['admin'], state="*")
-    # --- CRITICAL FIX: Added state=None to prevent this from overriding FSM handlers ---
+    
+    # --- CRITICAL FIX 1: This handler will now ONLY trigger if the admin is NOT in any state ---
     dp.register_message_handler(admin_reply_cmd, is_admin, is_reply=True, content_types=types.ContentTypes.ANY, state=None)
-    dp.register_callback_query_handler(callbacks_cmd, is_admin, state="*")
+    
+    # --- CRITICAL FIX 2: This handler is now more specific and won't steal callbacks from other panels ---
+    dp.register_callback_query_handler(
+        callbacks_cmd, 
+        is_admin, 
+        # This lambda ensures this handler only catches callbacks that DO NOT belong to the advanced panels.
+        lambda c: not c.data.startswith("adv_") and not c.data.startswith("tm_"),
+        state="*"
+    )
