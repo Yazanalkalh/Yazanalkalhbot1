@@ -1,3 +1,4 @@
+import sys
 from aiogram import Dispatcher
 
 # Import all handler registration functions
@@ -9,14 +10,22 @@ from .text_manager_handler import register_text_manager_handler
 
 def register_admin_handlers(dp: Dispatcher):
     """
-    Registers ALL admin handlers in the correct order: specialists first.
-    This order is critical to prevent conflicts.
+    Registers ALL admin handlers in the correct order:
+    
+    1. Main Panel Handlers (General Commands & Callbacks - must be first)
+    2. Specialist Handlers (Advanced, Chat, Text) - these must have explicit filters.
+    3. FSM Handlers (State-based logic - must be last)
     """
-    # 1. Register specialist handlers first. They have specific triggers.
+    
+    # 1. المعالج العام (يجب أن يسجل أولاً لاحتوائه على أمر /admin والمعالج العام للأزرار)
+    register_panel_handlers(dp) 
+    
+    # 2. المعالجات المتخصصة (تحتاج لفلاتر قوية لتجنب اعتراض الرسائل)
     register_advanced_panel_handler(dp)
     register_chat_admin_handler(dp)
     register_text_manager_handler(dp)
     
-    # 2. Register the more general handlers last.
-    register_panel_handlers(dp)
+    # 3. معالجات الحالات FSM (يجب أن تسجل في النهاية)
     register_fsm_handlers(dp)
+
+    print("✅ Admin Handlers Registered in correct priority order.")
