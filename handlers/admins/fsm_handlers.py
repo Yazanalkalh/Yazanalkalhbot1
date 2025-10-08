@@ -9,8 +9,8 @@ from config import ADMIN_CHAT_ID
 import data_store
 from keyboards.inline.admin_keyboards import create_admin_panel, add_another_kb
 from keyboards.inline.advanced_keyboards import create_advanced_panel
-from utils.database import add_content_to_library, add_scheduled_post # Assumed to be imported
-from utils import texts # Used for central text management
+from utils.database import add_content_to_library, add_scheduled_post 
+from utils import texts 
 
 # This is the final, definitive, and complete version of the FSM handlers file.
 
@@ -115,14 +115,14 @@ async def import_reminders_handler(m: types.Message, state: FSMContext):
     await m.reply(texts.get_text("success_import_reminders", count=success), reply_markup=create_admin_panel())
     await state.finish()
 
-# --- NEW: Handlers for the Text Manager (/yazan) ---
+# --- NEW: Handlers for the Text Manager ---
 async def select_text_to_edit_handler(cq: types.CallbackQuery, state: FSMContext):
     text_key = cq.data.replace("edit_text_", "")
     await state.update_data(text_key_to_edit=text_key)
     current_text = texts.get_text(text_key)
     prompt = texts.get_text("text_manager_prompt_new", key=text_key, current_text=current_text)
     
-    cancel_button = types.InlineKeyboardButton(texts.get_text("action_cancelled"), callback_data="cancel_text_edit") # Unique callback
+    cancel_button = types.InlineKeyboardButton(texts.get_text("action_cancelled"), callback_data="cancel_text_edit") 
     
     await cq.message.edit_text(prompt, reply_markup=types.InlineKeyboardMarkup().add(cancel_button))
     await AdminStates.waiting_for_new_text.set()
@@ -136,7 +136,6 @@ async def process_new_text_handler(m: types.Message, state: FSMContext):
         data_store.save_data()
         await m.reply(texts.get_text("text_manager_success", key=text_key))
     await state.finish()
-    # Go back to the /yazan panel by calling its handler
     from .text_manager_handler import text_manager_cmd
     await text_manager_cmd(m, state)
 
@@ -150,7 +149,7 @@ def register_fsm_handlers(dp: Dispatcher):
     dp.register_message_handler(process_new_text_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_new_text)
     dp.register_callback_query_handler(cancel_cmd, is_admin, lambda c: c.data == "cancel_text_edit", state="*")
 
-    # 🟢 New Registrations for Bulk Import Files (CRITICAL FIX)
+    # 🟢 Registrations for Bulk Import Files 
     dp.register_message_handler(
         import_dyn_replies_handler, 
         is_admin, 
@@ -164,10 +163,22 @@ def register_fsm_handlers(dp: Dispatcher):
         state=AdminStates.waiting_for_reminders_file
     )
 
-    # --- All /admin handlers (Complete and Correct) ---
+    # --- All /admin handlers (Fixed State Names) ---
     dp.register_message_handler(dyn_reply_keyword_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_keyword)
     dp.register_message_handler(dyn_reply_content_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_dyn_reply_content)
     dp.register_message_handler(dyn_reply_delete_handler, is_admin, state=AdminStates.waiting_for_dyn_reply_delete)
-    dp.register_message_handler(add_reminder_handler, is_admin, content_types=types.ContentTypes.ANY, state=AdminStates.waiting_for_reminder_text)
-    dp.register_message_handler(delete_reminder_handler, is_admin, state=AdminStates.waiting_for_reminder_index)
-    # NOTE: You'll need to ensure the missing states from AdminStates are correctly handled and registered.
+    
+    # 🔴 FIXING THE ERROR: Changed state names to match states/admin_states.py
+    dp.register_message_handler(
+        add_reminder_handler, 
+        is_admin, 
+        content_types=types.ContentTypes.ANY, 
+        state=AdminStates.waiting_for_new_reminder # <--- تم التصحيح هنا
+    )
+    dp.register_message_handler(
+        delete_reminder_handler, 
+        is_admin, 
+        state=AdminStates.waiting_for_delete_reminder # <--- تم التصحيح هنا
+    )
+
+    # NOTE: Ensure all other required states are registered if needed.
