@@ -1,9 +1,13 @@
-aiogram==2.25.2
-pymongo
-dnspython
-python-dotenv
+Aiogram and its dependencies
+​aiogram==2.25.2
+​Database
+​pymongo==4.3.3
+dnspython==2.3.0
+​Environment & Web Server
+​python-dotenv==1.0.0
 Flask==2.2.2
 Werkzeug==2.2.3
-hijri-converter==2.3.1
-pytz
-Babel
+​Date/Time & Localization
+​hijri-converter==2.3.1
+pytz==2023.3
+Babel==2.12.1
