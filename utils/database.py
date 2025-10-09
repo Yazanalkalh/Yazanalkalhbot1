@@ -1,24 +1,25 @@
-from pymongo import MongoClient
+# ✅ تم الإصلاح: استيراد المترجم الصحيح motor
+from motor.motor_asyncio import AsyncIOMotorClient
 import datetime
 from config import MONGO_URI, ADMIN_CHAT_ID
 
-client = MongoClient(MONGO_URI)
+# ✅ تم الإصلاح: استخدام AsyncIOMotorClient بدلاً من MongoClient
+client = AsyncIOMotorClient(MONGO_URI)
 db = client.get_database("HijriBotDB_V2")
 
-# ✅ تم الإصلاح: إعادة تعريف كل المجموعات (Collections) المطلوبة
 settings_collection = db.get_collection("BotSettings")
 users_collection = db.get_collection("Users")
 forwarded_links_collection = db.get_collection("ForwardedLinks")
 content_library_collection = db.get_collection("ContentLibrary")
 scheduled_posts_collection = db.get_collection("ScheduledPosts")
-channels_collection = db.get_collection("Channels") # <-- هذه كانت مفقودة
+channels_collection = db.get_collection("Channels")
 
 start_time = datetime.datetime.now()
-print("✅ Successfully connected to the fully upgraded cloud database!")
+print("✅ Successfully connected to the ASYNC cloud database!")
 
 # --- Settings Functions ---
+# كل الدوال الآن تستخدم await بشكل صحيح مع motor
 async def get_setting(key: str, default=None):
-    # This function uses find_one which is already async with motor
     doc = await settings_collection.find_one({"_id": "main_bot_config"})
     if not doc: return default
     keys = key.split('.'); value = doc
@@ -49,49 +50,35 @@ async def save_forwarded_link(admin_msg_id: int, user_id: int, user_msg_id: int)
 async def get_forwarded_link(admin_msg_id: int):
     return await forwarded_links_collection.find_one({"_id": admin_msg_id})
 
-# --- Content, Reminders, Replies ---
-async def get_all_reminders() -> list:
-    doc = await settings_collection.find_one({"_id": "main_bot_config"}, {"reminders": 1})
-    return doc.get("reminders", []) if doc else []
-    
-async def get_all_channel_messages() -> list:
-    doc = await settings_collection.find_one({"_id": "main_bot_config"}, {"channel_messages": 1})
-    return doc.get("channel_messages", []) if doc else []
-
-# ... (Add other content functions if needed, like add_reminder, delete_reminder, etc.)
-
-# ✅ --- تم الإصلاح: إعادة إضافة كل دوال إدارة القنوات المفقودة ---
-def add_pending_channel(chat_id: int, title: str):
-    """Adds a new channel/group to the pending list for admin approval."""
-    channels_collection.update_one(
+# --- Channel Management ---
+async def add_pending_channel(chat_id: int, title: str):
+    await channels_collection.update_one(
         {"_id": chat_id},
         {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}},
         upsert=True
     )
 
-def approve_channel(chat_id: int):
-    """Approves a pending channel."""
-    channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
+async def approve_channel(chat_id: int):
+    await channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
 
-def reject_channel(chat_id: int):
-    """Rejects (deletes) a pending channel request."""
-    channels_collection.delete_one({"_id": chat_id})
+async def reject_channel(chat_id: int):
+    await channels_collection.delete_one({"_id": chat_id})
 
-def get_pending_channels():
-    """Gets a list of all channels awaiting approval."""
-    return list(channels_collection.find({"status": "pending"}))
+async def get_pending_channels():
+    cursor = channels_collection.find({"status": "pending"})
+    return await cursor.to_list(length=100) # motor requires this syntax for find()
 
-def get_approved_channels():
-    """Gets a list of all approved channels for broadcasting."""
-    return list(channels_collection.find({"status": "approved"}))
-# --------------------------------------------------------------------
+async def get_approved_channels():
+    cursor = channels_collection.find({"status": "approved"})
+    return await cursor.to_list(length=100)
 
 # --- Database Stats ---
 async def get_db_stats():
-    # ... (rest of the file is correct)
     try:
         await client.admin.command('ping')
         is_connected = True
     except:
         is_connected = False
     return {"ok": is_connected, "users_count": await users_collection.count_documents({})}
+
+# ... (يمكن إضافة بقية الدوال المساعدة هنا إذا احتجنا إليها لاحقًا)
