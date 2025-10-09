@@ -1,9 +1,7 @@
-# ✅ تم الإصلاح: استيراد المترجم الصحيح motor
 from motor.motor_asyncio import AsyncIOMotorClient
 import datetime
 from config import MONGO_URI, ADMIN_CHAT_ID
 
-# ✅ تم الإصلاح: استخدام AsyncIOMotorClient بدلاً من MongoClient
 client = AsyncIOMotorClient(MONGO_URI)
 db = client.get_database("HijriBotDB_V2")
 
@@ -18,7 +16,6 @@ start_time = datetime.datetime.now()
 print("✅ Successfully connected to the ASYNC cloud database!")
 
 # --- Settings Functions ---
-# كل الدوال الآن تستخدم await بشكل صحيح مع motor
 async def get_setting(key: str, default=None):
     doc = await settings_collection.find_one({"_id": "main_bot_config"})
     if not doc: return default
@@ -26,7 +23,8 @@ async def get_setting(key: str, default=None):
     try:
         for k in keys: value = value[k]
         return value
-    except KeyError: return default
+    except (KeyError, TypeError):
+        return default
 
 async def update_setting(key: str, value):
     await settings_collection.update_one({"_id": "main_bot_config"}, {"$set": {key: value}}, upsert=True)
@@ -52,11 +50,7 @@ async def get_forwarded_link(admin_msg_id: int):
 
 # --- Channel Management ---
 async def add_pending_channel(chat_id: int, title: str):
-    await channels_collection.update_one(
-        {"_id": chat_id},
-        {"$set": {"title": title, "status": "pending", "added_at": datetime.datetime.utcnow()}},
-        upsert=True
-    )
+    await channels_collection.update_one({"_id": chat_id}, {"$set": {"title": title, "status": "pending"}}, upsert=True)
 
 async def approve_channel(chat_id: int):
     await channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
@@ -64,13 +58,35 @@ async def approve_channel(chat_id: int):
 async def reject_channel(chat_id: int):
     await channels_collection.delete_one({"_id": chat_id})
 
+# ✅ تم الإصلاح: استخدام cursor.to_list لجلب القوائم
 async def get_pending_channels():
     cursor = channels_collection.find({"status": "pending"})
-    return await cursor.to_list(length=100) # motor requires this syntax for find()
+    return await cursor.to_list(length=100)
 
 async def get_approved_channels():
     cursor = channels_collection.find({"status": "approved"})
     return await cursor.to_list(length=100)
+
+# ✅ --- تم الإصلاح: إعادة إضافة الدوال المساعدة مع التصحيح ---
+async def get_all_reminders() -> list:
+    doc = await settings_collection.find_one({"_id": "main_bot_config"}, {"reminders": 1})
+    return doc.get("reminders", []) if doc else []
+
+async def get_all_channel_messages() -> list:
+    doc = await settings_collection.find_one({"_id": "main_bot_config"}, {"channel_messages": 1})
+    return doc.get("channel_messages", []) if doc else []
+
+async def get_due_scheduled_posts() -> list:
+    now_utc = datetime.datetime.utcnow()
+    cursor = scheduled_posts_collection.find({"send_at": {"$lte": now_utc}, "sent": False})
+    return await cursor.to_list(length=100)
+    
+async def mark_post_as_sent(post_object_id):
+    await scheduled_posts_collection.update_one({"_id": post_object_id}, {"$set": {"sent": True}})
+
+async def get_content_from_library(content_id: str):
+    return await content_library_collection.find_one({"_id": content_id})
+# -----------------------------------------------------------------
 
 # --- Database Stats ---
 async def get_db_stats():
@@ -80,5 +96,3 @@ async def get_db_stats():
     except:
         is_connected = False
     return {"ok": is_connected, "users_count": await users_collection.count_documents({})}
-
-# ... (يمكن إضافة بقية الدوال المساعدة هنا إذا احتجنا إليها لاحقًا)
