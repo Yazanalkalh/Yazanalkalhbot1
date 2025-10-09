@@ -11,8 +11,6 @@ from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboa
 def is_admin(message: types.Message):
     return message.from_user.id == ADMIN_CHAT_ID
 
-# --- (بقية الكود في هذا الملف سليم تمامًا ولا يحتاج تعديل) ---
-
 async def admin_panel_cmd(m: types.Message, state: FSMContext):
     if await state.get_state() is not None:
         await state.finish()
@@ -29,7 +27,6 @@ async def admin_reply_cmd(m: types.Message, state: FSMContext):
             await m.reply(texts.get_text("admin_reply_fail", e=e))
 
 async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
-    # This logic remains correct
     await cq.answer()
     d = cq.data
     
@@ -37,8 +34,26 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "back_to_main": 
         await cq.message.edit_text(texts.get_text("admin_panel_title"), reply_markup=create_admin_panel())
         return
-
-    # ... (rest of the callback logic)
+    
+    # ... (بقية منطق الأزرار هنا سليم)
+    # This part handles deletions and other interactions
+    if d == "admin_stats":
+        stats = database.get_db_stats()
+        uptime = datetime.datetime.now() - database.start_time
+        stats_text = (f"📊 **إحصائيات البوت:**\n\n"
+                      f"👥 المستخدمون: {stats.get('users_count', 0)}\n"
+                      f"⏱️ وقت التشغيل: {str(uptime).split('.')[0]}")
+        await cq.message.edit_text(stats_text, reply_markup=back_kb()); return
+        
+    # Other handlers for setting states
+    standard_prompts = { 
+        "add_dyn_reply": (texts.get_text("prompt_dyn_reply_keyword"), AdminStates.waiting_for_dyn_reply_keyword),
+        "add_reminder": (texts.get_text("prompt_reminder_text"), AdminStates.waiting_for_new_reminder),
+    }
+    if d in standard_prompts:
+        prompt_text, state_obj = standard_prompts[d]
+        await state.set_state(state_obj)
+        await cq.message.edit_text(f"{prompt_text}\n\nلإلغاء العملية، أرسل /cancel."); return
 
 def register_panel_handlers(dp: Dispatcher):
     dp.register_message_handler(admin_panel_cmd, is_admin, commands=['admin'], state="*")
