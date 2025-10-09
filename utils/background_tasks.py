@@ -1,34 +1,31 @@
 import asyncio
-import random
 from loader import bot
 from config import ADMIN_CHAT_ID
 from utils import database
 
-# هذه الدالة يجب أن تبقى async لأنها تستخدم asyncio.sleep
-async def schedule_channel_messages():
-    while True:
-        try:
-            # ✅ تم الإصلاح: لا يوجد await لاستدعاءات قاعدة البيانات
-            interval = database.get_setting("schedule_interval_seconds", 86400)
-            await asyncio.sleep(interval)
-            channel_id = database.get_setting("channel_id")
-            messages = database.get_all_channel_messages()
-            if channel_id and messages:
-                message_text = random.choice(messages)
-                await bot.send_message(channel_id, message_text)
-                print(f"✅ Auto-posted random message to channel {channel_id}")
-        except Exception as e:
-            print(f"CHANNEL SCHEDULER ERROR: {e}")
-            await asyncio.sleep(60)
+async def daily_reminder_task():
+    """A background task that could send a daily reminder to a channel."""
+    # This is a placeholder for a more complex scheduler you might want.
+    # For now, it runs once on startup as an example.
+    try:
+        channel_id = database.get_setting("main_channel_id")
+        if channel_id:
+            reminder = database.get_random_reminder()
+            await bot.send_message(channel_id, reminder)
+            print(f"✅ Sent a startup reminder to channel {channel_id}")
+    except Exception as e:
+        print(f"DAILY REMINDER TASK ERROR: {e}")
 
-# ... (بقية الملفات سليمة ولا تحتاج تعديل لأن منطق aiogram نفسه هو async)
-# سأرفق لك نسخة نظيفة من `advanced_panel.py` و `panel.py` كمثال للتأكيد
 
 async def startup_tasks(dp):
+    """Tasks to run on bot startup."""
     try:
-        await bot.send_message(ADMIN_CHAT_ID, "✅ **Bot is running (SYNC DB)!**")
-        asyncio.create_task(schedule_channel_messages())
-        # يمكنك إضافة مهمة process_scheduled_posts هنا إذا أردت
+        await bot.send_message(
+            ADMIN_CHAT_ID,
+            "✅ **Bot is running (VIP Edition)!**\n\n- <b>Status:</b> Online and active\n- <b>Database:</b> SYNC Stable"
+        )
+        # Start any recurring background tasks here
+        asyncio.create_task(daily_reminder_task())
         print("✅ Background tasks started.")
     except Exception as e:
         print(f"STARTUP NOTIFICATION ERROR: {e}")
