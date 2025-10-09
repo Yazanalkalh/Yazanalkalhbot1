@@ -1,27 +1,27 @@
 from aiogram import types, Dispatcher
 from config import ADMIN_CHAT_ID
 from loader import bot
-# نستورد الدالة الصحيحة من قاعدة البيانات
+# NEW: We need the database function to add the request
 from utils.database import add_pending_channel
 
-# هذا هو الملف الكامل والصحيح
-# وظيفته هي اكتشاف انضمام البوت إلى قناة جديدة وإبلاغ المدير
+# This is a new, isolated file. Its only job is to detect when the bot
+# is added to a new channel or group and notify the admin.
 
 async def on_bot_join_chat(message: types.Message):
     """
-    هذا المعالج يعمل عندما تتم إضافة البوت إلى مجموعة أو قناة جديدة.
-    يقوم بإضافة المحادثة إلى قائمة الانتظار ويبلغ المدير.
+    This handler triggers when the bot is added to a new group or channel.
+    It adds the chat to the pending list and notifies the admin.
     """
-    # هذا التحقق يضمن أن الحدث يتعلق بانضمام البوت نفسه
+    # This check ensures the event is about the bot itself joining
     for member in message.new_chat_members:
         if member.id == bot.id:
             chat_id = message.chat.id
             chat_title = message.chat.title
             
-            # الإضافة إلى قاعدة البيانات لموافقة المدير
+            # Add to the database for admin approval
             add_pending_channel(chat_id, chat_title)
             
-            # إبلاغ المدير
+            # Notify the admin
             text = (
                 f"⏳ **طلب انضمام جديد**\n\n"
                 f"تمت إضافة البوت إلى قناة/مجموعة جديدة وهي تنتظر موافقتك:\n\n"
@@ -30,13 +30,11 @@ async def on_bot_join_chat(message: types.Message):
                 f"اذهب إلى **لوحة التحكم المتقدمة (`/hijri`)** -> **إدارة القنوات** للموافقة أو الرفض."
             )
             await bot.send_message(ADMIN_CHAT_ID, text)
-            break # لا حاجة للتحقق من بقية الأعضاء الجدد
+            break # No need to check other new members
 
-# 🔴 هذا هو "الموظف المفقود" الذي كنا نبحث عنه
-# هذه الدالة هي التي يتم استيرادها في ملف __init__.py
 def register_chat_admin_handler(dp: Dispatcher):
-    """يسجل المعالج الخاص بتغييرات عضوية المحادثة."""
-    # هذا المعالج يبحث تحديدًا عن الرسائل من نوع "أعضاء جدد في المحادثة"
+    """Registers the handler for chat membership changes."""
+    # This handler specifically looks for messages of type "new chat members"
     dp.register_message_handler(
         on_bot_join_chat,
         content_types=types.ContentTypes.NEW_CHAT_MEMBERS
