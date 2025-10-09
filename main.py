@@ -3,7 +3,7 @@ import sys
 import atexit
 from threading import Thread
 
-# --- Lock File logic (Unchanged) ---
+# --- Lock File logic (لا تغيير هنا، هذا الكود سليم) ---
 LOCK_FILE = "bot.lock"
 def create_lock_file():
     if os.path.exists(LOCK_FILE):
@@ -27,18 +27,19 @@ create_lock_file()
 from aiogram.utils import executor
 from loader import dp
 from handlers import register_all_handlers
-# NOTE: We no longer import the text_manager_handler here. It's now handled by the HR manager.
 from utils.background_tasks import startup_tasks
 from web_server import run_web_server
-import data_store
+# ✅ تم الإصلاح 1: تم حذف 'import data_store' من هنا بشكل نهائي.
 
 async def on_startup(dispatcher):
     """Function to run on bot startup."""
-    data_store.initialize_data()
+    # ✅ تم الإصلاح 2: تم حذف السطر القديم الذي يستدعي data_store.initialize_data()
+    # لم نعد بحاجة إليه لأن البوت الآن يقرأ من قاعدة البيانات مباشرة عند الحاجة.
     
-    # This single line now registers ALL handlers in the correct order.
+    # هذه الدالة الآن تقوم بتسجيل كل شيء بالترتيب الصحيح.
     register_all_handlers(dispatcher)
     
+    # وهذه الدالة تقوم ببدء المهام الخلفية.
     await startup_tasks(dispatcher)
 
 if __name__ == '__main__':
