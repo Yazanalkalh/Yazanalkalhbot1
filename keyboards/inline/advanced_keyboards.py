@@ -1,16 +1,16 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils import database
+import data_store
 
-async def create_advanced_panel() -> InlineKeyboardMarkup:
+# This is the final, definitive version of the advanced keyboard designer.
+
+def create_advanced_panel() -> InlineKeyboardMarkup:
+    """Creates the main keyboard for the advanced control panel."""
     keyboard = InlineKeyboardMarkup(row_width=2)
+    settings = data_store.bot_data.get('bot_settings', {})
     
-    is_maintenance = await database.get_setting('maintenance_mode', False)
-    is_antispam = await database.get_setting('anti_duplicate_mode', False)
-    is_force_sub = await database.get_setting('force_subscribe', False)
-    
-    maintenance_status = "🟢 تشغيل البوت" if is_maintenance else "🔴 إيقاف البوت (صيانة)"
-    antispam_status = "🔕 تعطيل منع التكرار" if is_antispam else "🔔 تفعيل منع التكرار"
-    force_sub_status = "🔗 تعطيل الإشتراك الإجباري" if is_force_sub else "🔗 تفعيل الإشتراك الإجباري"
+    maintenance_status = "🟢 تشغيل البوت" if settings.get('maintenance_mode', False) else "🔴 إيقاف البوت (صيانة)"
+    antispam_status = "🔕 تعطيل منع التكرار" if settings.get('anti_duplicate_mode', False) else "🔔 تفعيل منع التكرار"
+    force_sub_status = "🔗 تعطيل الإشتراك الإجباري" if settings.get('force_subscribe', False) else "🔗 تفعيل الإشتراك الإجباري"
 
     keyboard.add(
         InlineKeyboardButton(maintenance_status, callback_data="adv_toggle_maintenance"),
@@ -33,30 +33,32 @@ async def create_advanced_panel() -> InlineKeyboardMarkup:
     )
     return keyboard
 
-async def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
+def get_advanced_submenu(menu_type: str) -> InlineKeyboardMarkup:
+    """Generates specific sub-menus for the advanced panel."""
     keyboard = InlineKeyboardMarkup(row_width=1)
+    notification_settings = data_store.bot_data.get('notification_settings', {})
     
-    if menu_type == "adv_notifications":
-        on_success = await database.get_setting('notification_on_success', False)
-        on_fail = await database.get_setting('notification_on_fail', False)
-        buttons = [
-            ("🟢 تفعيل إشعار النجاح" if not on_success else "🔴 تعطيل إشعار النجاح", "adv_toggle_success_notify"),
-            ("🟢 تفعيل إشعار الفشل" if not on_fail else "🔴 تعطيل إشعار الفشل", "adv_toggle_fail_notify")
+    buttons_map = {
+        "adv_notifications": [
+            ("🟢 تفعيل إشعار النجاح" if not notification_settings.get('on_success', False) else "🔴 تعطيل إشعار النجاح", "adv_toggle_success_notify"),
+            ("🟢 تفعيل إشعار الفشل" if not notification_settings.get('on_fail', False) else "🔴 تعطيل إشعار الفشل", "adv_toggle_fail_notify")
+        ],
+        "adv_manage_library": [
+            ("📖 عرض كل المحتوى", "adv_view_library"),
+            ("🧹 حذف المحتوى غير المستخدم", "adv_prune_library")
+        ],
+        "adv_manage_channels": [
+            ("📋 عرض القنوات المعتمدة", "adv_view_channels"),
+            ("⏳ عرض طلبات الانضمام", "adv_view_pending_channels"),
+            ("🆔 تحديد قناة الاشتراك الإجباري", "adv_set_force_channel")
+        ],
+        "adv_stats": [
+            ("📈 نمو المستخدمين (آخر 7 أيام)", "adv_stats_growth"),
+            ("🏆 المستخدمون الأكثر تفاعلاً", "adv_stats_top_users")
         ]
-    else:
-        buttons_map = {
-            "adv_manage_library": [("📖 عرض كل المحتوى", "adv_view_library")],
-            "adv_manage_channels": [
-                ("📋 عرض القنوات المعتمدة", "adv_view_channels"),
-                ("⏳ عرض طلبات الانضمام", "adv_view_pending_channels"),
-                ("🆔 تحديد قناة الاشتراك الإجباري", "adv_set_force_channel")
-            ],
-            "adv_stats": [("📈 نمو المستخدمين (آخر 7 أيام)", "adv_stats_growth")]
-        }
-        buttons = buttons_map.get(menu_type, [])
-
-    for text, cb in buttons:
-        keyboard.add(InlineKeyboardButton(text=text, callback_data=cb))
-        
+    }
+    
+    buttons = [InlineKeyboardButton(text=text, callback_data=cb) for text, cb in buttons_map.get(menu_type, [])]
+    keyboard.add(*buttons)
     keyboard.add(InlineKeyboardButton(text="🔙 العودة للوحة المتقدمة", callback_data="back_to_advanced"))
     return keyboard
