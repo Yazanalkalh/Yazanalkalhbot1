@@ -1,13 +1,11 @@
 import datetime
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
-# ✅ تم الإصلاح: الآن يستورد ID المدير من المكان الصحيح
 from config import ADMIN_CHAT_ID
 from utils import database, texts
 from states.admin_states import AdminStates
 from keyboards.inline.admin_keyboards import create_admin_panel, get_menu_keyboard, back_kb
 
-# ✅ تم الإصلاح: الفلتر الآن يستخدم المتغير الصحيح
 def is_admin(message: types.Message):
     return message.from_user.id == ADMIN_CHAT_ID
 
@@ -35,8 +33,14 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         await cq.message.edit_text(texts.get_text("admin_panel_title"), reply_markup=create_admin_panel())
         return
     
-    # ... (بقية منطق الأزرار هنا سليم)
-    # This part handles deletions and other interactions
+    # Logic for menus
+    menus = ["admin_dyn_replies", "admin_reminders", "admin_channel", "admin_ban", 
+             "admin_broadcast", "admin_customize_ui", "admin_security", "admin_channel_settings"]
+    if d in menus:
+        await cq.message.edit_text(f"اختر أحد الخيارات لقسم {d}:", reply_markup=get_menu_keyboard(d))
+        return
+
+    # Logic for stats
     if d == "admin_stats":
         stats = database.get_db_stats()
         uptime = datetime.datetime.now() - database.start_time
@@ -45,13 +49,14 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
                       f"⏱️ وقت التشغيل: {str(uptime).split('.')[0]}")
         await cq.message.edit_text(stats_text, reply_markup=back_kb()); return
         
-    # Other handlers for setting states
-    standard_prompts = { 
-        "add_dyn_reply": (texts.get_text("prompt_dyn_reply_keyword"), AdminStates.waiting_for_dyn_reply_keyword),
-        "add_reminder": (texts.get_text("prompt_reminder_text"), AdminStates.waiting_for_new_reminder),
+    # Logic for setting states
+    prompts_and_states = {
+        "add_dyn_reply": ("أرسل الكلمة المفتاحية للرد الجديد:", AdminStates.waiting_for_dyn_reply_keyword),
+        "add_reminder": ("أرسل نص التذكير الجديد:", AdminStates.waiting_for_new_reminder),
+        "ban_user": ("أرسل ID المستخدم الذي تريد حظره:", AdminStates.waiting_for_ban_id),
     }
-    if d in standard_prompts:
-        prompt_text, state_obj = standard_prompts[d]
+    if d in prompts_and_states:
+        prompt_text, state_obj = prompts_and_states[d]
         await state.set_state(state_obj)
         await cq.message.edit_text(f"{prompt_text}\n\nلإلغاء العملية، أرسل /cancel."); return
 
