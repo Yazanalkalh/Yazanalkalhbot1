@@ -1,104 +1,136 @@
-from pymongo import MongoClient
-from config import MONGO_URI, ADMIN_CHAT_ID
+from pymongo import MongoClient, DESCENDING
+from config import MONGO_URI
+import hashlib
 import datetime
 
-# --- Database Connection ---
+# This is the fully upgraded "Warehouse Manager".
+# It now handles settings, content library, channels, users, and stats.
+
 try:
     client = MongoClient(MONGO_URI)
-    db = client.get_database("HijriBotDB_VIP") # Using a new DB name for a fresh start
+    db = client.get_database("HijriBotDB_V2")
     
-    settings_collection = db.get_collection("Settings")
+    settings_collection = db.get_collection("BotSettings")
+    content_library_collection = db.get_collection("ContentLibrary")
+    scheduled_posts_collection = db.get_collection("ScheduledPosts")
+    # NEW Collections for advanced features
+    channels_collection = db.get_collection("Channels")
     users_collection = db.get_collection("Users")
-    content_collection = db.get_collection("Content") # For reminders, channel posts, etc.
-    forwarded_links_collection = db.get_collection("ForwardedLinks")
 
-    # A single document to hold all bot settings
-    settings_collection.update_one({"_id": "bot_config"}, {"$setOnInsert": {}}, upsert=True)
-    
-    print("✅ Successfully connected to the SYNC cloud database!")
+    print("✅ Successfully connected to the fully upgraded cloud database!")
 except Exception as e:
     print(f"❌ DATABASE CONNECTION FAILED: {e}")
     exit(1)
 
-# To calculate uptime
-start_time = datetime.datetime.now()
+# --- Settings & User Functions ---
+def load_db_data():
+    """Loads general bot settings."""
+    data_doc = settings_collection.find_one({"_id": "main_bot_config"})
+    return data_doc if data_doc else {}
 
-# --- Settings Functions ---
-def get_setting(key, default=None):
-    """Gets a specific setting value from the database."""
-    config = settings_collection.find_one({"_id": "bot_config"})
-    # Use dot notation to get nested keys (e.g., 'ui.welcome_message')
-    keys = key.split('.')
-    value = config
+def save_db_data(data):
+    """Saves general bot settings."""
     try:
-        for k in keys:
-            value = value[k]
-        return value
-    except (KeyError, TypeError):
-        return default
+        settings_collection.find_one_and_update(
+            {"_id": "main_bot_config"}, {"$set": data}, upsert=True
+        )
+    except Exception as e:
+        print(f"DB SETTINGS SAVE ERROR: {e}")
 
-def update_setting(key, value):
-    """Updates a specific setting value in the database."""
-    settings_collection.update_one({"_id": "bot_config"}, {"$set": {key: value}}, upsert=True)
-
-# --- User Management ---
-def add_user(user_id, full_name, username):
+def add_user(user_id: int, full_name: str, username: str):
+    """Adds or updates a user in the database."""
     users_collection.update_one(
         {"_id": user_id},
         {"$set": {
             "full_name": full_name,
             "username": username,
-            "last_seen": datetime.datetime.now()
-        }, "$setOnInsert": {"is_banned": False, "join_date": datetime.datetime.now()}},
+            "last_seen": datetime.datetime.utcnow()
+        }},
         upsert=True
     )
 
-def is_user_banned(user_id):
-    user = users_collection.find_one({"_id": user_id})
-    return user.get("is_banned", False) if user else False
+# --- Content Library Functions ---
+def add_content_to_library(content_type: str, content_value: str) -> str:
+    content_hash = hashlib.sha256(content_value.encode()).hexdigest()
+    if not content_library_collection.find_one({"_id": content_hash}):
+        content_library_collection.insert_one({
+            "_id": content_hash, "type": content_type,
+            "value": content_value, "added_at": datetime.datetime.utcnow()
+        })
+    return content_hash
 
-def ban_user(user_id):
-    users_collection.update_one({"_id": user_id}, {"$set": {"is_banned": True}}, upsert=True)
+def get_content_from_library(content_id: str):
+    return content_library_collection.find_one({"_id": content_id})
 
-def unban_user(user_id):
-    users_collection.update_one({"_id": user_id}, {"$set": {"is_banned": False}})
+def get_all_library_content(limit=20):
+    """Retrieves the most recent items from the library."""
+    return list(content_library_collection.find().sort("added_at", DESCENDING).limit(limit))
 
-def get_all_user_ids():
-    return [user["_id"] for user in users_collection.find({}, {"_id": 1})]
+def delete_content_by_id(content_id: str):
+    """Deletes a specific item from the content library."""
+    content_library_collection.delete_one({"_id": content_id})
 
-# --- Content Management (Reminders, etc.) ---
-def add_reminder(text):
-    content_collection.update_one(
-        {"_id": "reminders"},
-        {"$addToSet": {"items": text}}, # $addToSet prevents duplicates
-        upsert=True
-    )
-
-def get_all_reminders():
-    doc = content_collection.find_one({"_id": "reminders"})
-    return doc.get("items", []) if doc else []
-
-def get_random_reminder():
-    import random
-    reminders = get_all_reminders()
-    return random.choice(reminders) if reminders else "لا توجد تذكيرات حاليًا."
-
-# --- Forwarded Message Links ---
-def save_forwarded_link(admin_msg_id, user_id, user_msg_id):
-    forwarded_links_collection.insert_one({
-        "_id": admin_msg_id,
-        "user_id": user_id,
-        "original_message_id": user_msg_id,
-        "timestamp": datetime.datetime.now()
+# --- Scheduled Posts Functions ---
+def add_scheduled_post(content_id: str, channel_id: str, send_at_utc: datetime.datetime):
+    scheduled_posts_collection.insert_one({
+        "content_id": content_id, "channel_id": str(channel_id),
+        "send_at": send_at_utc, "sent": False
     })
 
-def get_forwarded_link(admin_msg_id):
-    return forwarded_links_collection.find_one({"_id": admin_msg_id})
+def get_due_scheduled_posts() -> list:
+    now_utc = datetime.datetime.utcnow()
+    return list(scheduled_posts_collection.find({
+        "send_at": {"$lte": now_utc}, "sent": False
+    }))
 
-# --- Statistics ---
+def mark_post_as_sent(post_object_id):
+    scheduled_posts_collection.update_one(
+        {"_id": post_object_id}, {"$set": {"sent": True}}
+    )
+
+# --- NEW: Channel/Group Management Functions ---
+def add_pending_channel(chat_id: int, title: str):
+    """Adds a new channel/group to the pending list for admin approval."""
+    # Use update_one with upsert to avoid duplicate errors if the bot is re-added
+    channels_collection.update_one(
+        {"_id": chat_id},
+        {"$set": {
+            "title": title,
+            "status": "pending",
+            "added_at": datetime.datetime.utcnow()
+        }},
+        upsert=True
+    )
+
+def approve_channel(chat_id: int):
+    """Approves a pending channel."""
+    channels_collection.update_one({"_id": chat_id}, {"$set": {"status": "approved"}})
+
+def reject_channel(chat_id: int):
+    """Rejects (deletes) a pending channel request."""
+    channels_collection.delete_one({"_id": chat_id})
+
+def get_pending_channels():
+    """Gets a list of all channels awaiting approval."""
+    return list(channels_collection.find({"status": "pending"}))
+
+def get_approved_channels():
+    """Gets a list of all approved channels for broadcasting."""
+    return list(channels_collection.find({"status": "approved"}))
+
+# --- NEW: Stats & System Status Functions ---
 def get_db_stats():
+    """Gathers various statistics from the database."""
+    try:
+        # Pinging the server is a good way to check connection.
+        db.command('ping')
+        is_connected = True
+    except:
+        is_connected = False
+        
     return {
-        "users_count": users_collection.count_documents({}),
-        "banned_count": users_collection.count_documents({"is_banned": True}),
-        "reminders_count": len(get_all_reminders()),
+        "ok": is_connected,
+        "library_count": content_library_collection.count_documents({}),
+        "scheduled_count": scheduled_posts_collection.count_documents({"sent": False}),
+        "users_count": users_collection.count_documents({})
     }
