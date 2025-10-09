@@ -18,7 +18,7 @@ async def admin_panel_cmd(m: types.Message, state: FSMContext):
     """Handler for the /admin command."""
     if await state.get_state() is not None:
         await state.finish()
-    await m.reply("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel())
+    await m.reply("🔧 لوحة أبو سيف بن ذي يزن ♥️ ", reply_markup=create_admin_panel())
 
 async def admin_reply_cmd(m: types.Message, state: FSMContext):
     """Handler for admin replies to forwarded messages."""
@@ -69,7 +69,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         
     # Other handlers
     if d == "admin_stats":
-        stats_text = (f"📊 **إحصائيات البوت:**\n\n"
+        stats_text = (f"📊 إحصائيات البوت:\n\n"
                       f"👥 المستخدمون: {len(data_store.bot_data.get('users', []))}\n"
                       f"🚫 المحظورون: {len(data_store.bot_data.get('banned_users', []))}\n"
                       f"💬 الردود: {len(data_store.bot_data.get('dynamic_replies', {}))}\n"
@@ -78,7 +78,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     
     if d == "deploy_status":
         uptime = datetime.datetime.now() - data_store.start_time
-        status_text = f"🚀 **حالة النشر:**\n\n✅ نشط\n⏰ مدة التشغيل: {str(uptime).split('.')[0]}"
+        status_text = f"🚀 حالة النشر:\n\n✅ نشط\n⏰ مدة التشغيل: {str(uptime).split('.')[0]}"
         await cq.message.edit_text(status_text, reply_markup=back_kb()); return
 
     if d == "test_channel":
@@ -98,8 +98,8 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "show_reminders":
         reminders = data_store.bot_data.get('reminders', [])
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-        text = "💭 **قائمة التذكيرات:**\n\nاضغط لحذف تذكير."
-        if not reminders: text = "💭 **القائمة فارغة.**"
+        text = "💭 قائمة التذكيرات:\n\nاضغط لحذف تذكير."
+        if not reminders: text = "💭 القائمة فارغة"
         else:
             for i, reminder in enumerate(reminders):
                 keyboard.add(types.InlineKeyboardButton(f"🗑️ {reminder[:50]}...", callback_data=f"del_reminder_{i}"))
@@ -110,8 +110,8 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "show_dyn_replies":
         replies = data_store.bot_data.get('dynamic_replies', {})
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-        text = "📝 **قائمة الردود:**\n\nاضغط لحذف رد."
-        if not replies: text = "📝 **القائمة فارغة.**"
+        text = "📝 قائمة الردود:\n\nاضغط لحذف رد."
+        if not replies: text = "📝 القائمة فارغة."
         else:
             for keyword in sorted(replies.keys()):
                 keyboard.add(types.InlineKeyboardButton(f"🗑️ `{keyword}`", callback_data=f"del_dyn_reply_{keyword}"))
@@ -120,8 +120,8 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         return
     
     lists = {
-        "show_channel_msgs": ("📢 **الرسائل التلقائية:**", "admin_channel", [f"{i+1}. {m[:40]}..." for i, m in enumerate(data_store.bot_data.get('channel_messages', []))]),
-        "show_banned": ("🚫 **المحظورون:**", "admin_ban", [f"`{uid}`" for uid in data_store.bot_data.get('banned_users', [])])
+        "show_channel_msgs": ("📢 الرسائل التلقائية:", "admin_channel", [f"{i+1}. {m[:40]}..." for i, m in enumerate(data_store.bot_data.get('channel_messages', []))]),
+        "show_banned": ("🚫 المحظورون:", "admin_ban", [f"`{uid}`" for uid in data_store.bot_data.get('banned_users', [])])
     }
     if d in lists:
         title, back_cb, items = lists[d]
@@ -129,8 +129,8 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         await cq.message.edit_text(text, reply_markup=back_kb(back_cb)); return
 
     prompts = { 
-        "add_dyn_reply": ("📝 أرسل **الكلمة المفتاحية**:", AdminStates.waiting_for_dyn_reply_keyword), 
-        "delete_dyn_reply": ("🗑️ أرسل الكلمة المفتاحية للحذف:", AdminStates.waiting_for_dyn_reply_delete),
+        "add_dyn_reply": ("📝 أرسل الكلمة التلقائية:", AdminStates.waiting_for_dyn_reply_keyword), 
+        "delete_dyn_reply": ("🗑️ أرسل الكلمة التلقائية للحذف:", AdminStates.waiting_for_dyn_reply_delete),
         "import_dyn_replies": ("📥 أرسل ملف الردود (.txt):", AdminStates.waiting_for_dyn_replies_file),
         "add_reminder": ("💭 أرسل نص التذكير:", AdminStates.waiting_for_new_reminder), 
         "delete_reminder": ("🗑️ أرسل رقم التذكير للحذف:", AdminStates.waiting_for_delete_reminder),
@@ -138,7 +138,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
         "add_channel_msg": ("➕ أرسل نص رسالة القناة:", AdminStates.waiting_for_new_channel_msg), 
         "delete_channel_msg": ("🗑️ أرسل رقم الرسالة للحذف:", AdminStates.waiting_for_delete_channel_msg), 
         "instant_channel_post": ("📤 أرسل المحتوى للنشر الفوري:", AdminStates.waiting_for_instant_channel_post), 
-        "schedule_post": ("⏰ أرسل **المحتوى** للجدولة:", AdminStates.waiting_for_scheduled_post_content), 
+        "schedule_post": ("⏰ أرسل المحتوى للجدولة:", AdminStates.waiting_for_scheduled_post_content), 
         "ban_user": ("🚫 أرسل ID المستخدم للحظر:", AdminStates.waiting_for_ban_id), 
         "unban_user": ("✅ أرسل ID المستخدم لإلغاء الحظر:", AdminStates.waiting_for_unban_id), 
         "send_broadcast": ("📤 أرسل رسالتك للجميع:", AdminStates.waiting_for_broadcast_message), 
