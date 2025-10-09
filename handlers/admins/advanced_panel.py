@@ -10,13 +10,13 @@ from states.admin_states import AdminStates
 def is_admin(message: types.Message):
     return message.from_user.id == ADMIN_CHAT_ID
 
-# --- (بقية الكود في هذا الملف سليم تمامًا ولا يحتاج تعديل) ---
-
 async def advanced_panel_cmd(m: types.Message, state: FSMContext):
     if await state.get_state() is not None: await state.finish()
     await m.reply(texts.get_text("adv_panel_title"), reply_markup=create_advanced_panel())
 
-# ... (rest of the advanced panel logic)
+async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
+    # This is a placeholder for the full logic
+    await cq.answer("Advanced panel callback received.")
 
 def register_advanced_panel_handler(dp: Dispatcher):
     dp.register_message_handler(advanced_panel_cmd, is_admin, commands=['hijri'], state="*")
