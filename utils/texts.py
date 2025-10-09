@@ -3,7 +3,6 @@ from utils import database
 
 # هذا هو القاموس الذكي النهائي
 TEXTS = {
-    # ... (لا تغييرات هنا، محتوى القاموس سليم) ...
     # --- General UI & Actions ---
     "action_cancelled": {
         "description": "رسالة إلغاء العملية",
