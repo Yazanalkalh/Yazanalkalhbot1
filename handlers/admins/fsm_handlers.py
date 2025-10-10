@@ -31,7 +31,7 @@ async def cancel_cmd(m: types.Message, state: FSMContext):
 
 async def dyn_reply_keyword_handler(m: types.Message, state: FSMContext):
     await state.update_data(keyword=m.text.strip())
-    await m.reply("👍 الآن أرسل **المحتوى** للرد.")
+    await m.reply("الآن أرسل المحتوى الرد✅.")
     await AdminStates.next()
 
 async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
@@ -40,7 +40,7 @@ async def dyn_reply_content_handler(m: types.Message, state: FSMContext):
     content = m.html_text
     data_store.bot_data.setdefault('dynamic_replies', {})[keyword] = content
     data_store.save_data()
-    await m.reply("✅ **تمت برمجة الرد بنجاح!**", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
+    await m.reply("✅ تمت إضافة الرد بنجاح!", reply_markup=add_another_kb("add_dyn_reply", "admin_dyn_replies"))
     await state.finish()
 
 async def dyn_reply_delete_handler(m: types.Message, state: FSMContext):
@@ -70,14 +70,14 @@ async def import_dyn_replies_handler(m: types.Message, state: FSMContext):
             else: fail += 1
         elif line: fail += 1
     if success > 0: data_store.save_data()
-    await m.reply(f"✅ **اكتمل استيراد الردود!**\n- ناجحة: {success}\n- فاشلة: {fail}", reply_markup=create_admin_panel())
+    await m.reply(f"✅ اكتمل استيراد الردود!\n- ناجحة: {success}\n- فاشلة: {fail}", reply_markup=create_admin_panel())
     await state.finish()
 
 async def add_reminder_handler(m: types.Message, state: FSMContext):
     reminder_text = m.text.strip()
     data_store.bot_data.setdefault('reminders', []).append(reminder_text)
     data_store.save_data()
-    await m.reply("✅ **تمت إضافة التذكير بنجاح!**", reply_markup=add_another_kb("add_reminder", "admin_reminders"))
+    await m.reply("✅ تمت إضافة التذكير بنجاح!", reply_markup=add_another_kb("add_reminder", "admin_reminders"))
     await state.finish()
 
 async def delete_reminder_handler(m: types.Message, state: FSMContext):
@@ -105,7 +105,7 @@ async def import_reminders_handler(m: types.Message, state: FSMContext):
             data_store.bot_data.setdefault('reminders', []).append(reminder)
             success += 1
     if success > 0: data_store.save_data()
-    await m.reply(f"✅ **اكتمل استيراد التذكيرات!**\n- تم استيراد {success} تذكيرًا.", reply_markup=create_admin_panel())
+    await m.reply(f"✅ اكتمل استيراد التذكيرات!\n- تم استيراد {success} تذكيرًا.", reply_markup=create_admin_panel())
     await state.finish()
 
 async def ban_user_handler(m: types.Message, state: FSMContext):
@@ -136,7 +136,7 @@ async def add_channel_msg_handler(m: types.Message, state: FSMContext):
     msg_text = m.text.strip()
     data_store.bot_data.setdefault('channel_messages', []).append(msg_text)
     data_store.save_data()
-    await m.reply("✅ **تمت إضافة رسالة القناة بنجاح!**", reply_markup=add_another_kb("add_channel_msg", "admin_channel"))
+    await m.reply("✅ تمت إضافة رسالة القناة بنجاح!", reply_markup=add_another_kb("add_channel_msg", "admin_channel"))
     await state.finish()
 
 async def delete_channel_msg_handler(m: types.Message, state: FSMContext):
@@ -181,11 +181,11 @@ async def scheduled_post_datetime_handler(m: types.Message, state: FSMContext):
         content_type, content_value = data.get('post_content_type'), data.get('post_content_value')
         channel_id = data_store.bot_data.get('bot_settings', {}).get('channel_id')
         if not channel_id:
-            await m.reply("❌ **خطأ:** يجب تحديد ID القناة أولاً.")
+            await m.reply("❌  خطأ:  يجب تحديد ID القناة أولاً.")
             return await state.finish()
         content_id = add_content_to_library(content_type=content_type, content_value=content_value)
         add_scheduled_post(content_id=content_id, channel_id=channel_id, send_at_utc=send_at_utc)
-        await m.reply(f"✅ **تمت جدولة المحتوى!**\nسيتم إرساله في: `{dt_str}` (بتوقيتك المحلي)", reply_markup=add_another_kb("schedule_post", "admin_channel"))
+        await m.reply(f"✅ تمت جدولة المحتوى!\nسيتم إرساله في: `{dt_str}` (بتوقيتك المحلي)", reply_markup=add_another_kb("schedule_post", "admin_channel"))
     except (ValueError, pytz.UnknownTimeZoneError) as e: await m.reply(f"❌ خطأ في التوقيت أو التنسيق! Error: {e}")
     except Exception as e: await m.reply(f"❌ حدث خطأ غير متوقع: {e}")
     await state.finish()
@@ -200,7 +200,7 @@ async def broadcast_handler(m: types.Message, state: FSMContext):
     for uid in user_list:
         try: await m.copy_to(uid); succ += 1; await asyncio.sleep(0.05)
         except: fail += 1
-    await m.reply(f"✅ **اكتمل الإرسال:**\n- نجح: {succ}\n- فشل: {fail}", reply_markup=create_admin_panel())
+    await m.reply(f"✅ اكتمل الإرسال:\n- نجح: {succ}\n- فشل: {fail}", reply_markup=create_admin_panel())
     await state.finish()
 
 async def date_button_label_handler(m: types.Message, state: FSMContext):
