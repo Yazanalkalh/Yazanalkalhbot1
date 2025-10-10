@@ -27,9 +27,9 @@ async def admin_reply_cmd(m: types.Message, state: FSMContext):
     if link:
         try:
             await m.copy_to(link["user_id"], reply_to_message_id=link["original_message_id"])
-            await m.reply("✅ **تم إرسال الرد بنجاح.**")
+            await m.reply("✅ تم إرسال الرد بنجاح.")
         except Exception as e:
-            await m.reply(f"❌ **فشل إرسال الرد:** {e}")
+            await m.reply(f"❌ فشل إرسال الرد: {e}")
 
 async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     """Central handler for the main /admin panel callback queries."""
@@ -41,7 +41,7 @@ async def callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     
     # Main navigation
     if d == "close_panel": await cq.message.delete(); return
-    if d == "back_to_main": await cq.message.edit_text("🔧 **لوحة التحكم الإدارية**", reply_markup=create_admin_panel()); return
+    if d == "back_to_main": await cq.message.edit_text("🔧  لوحة التحكم الإدارية", reply_markup=create_admin_panel()); return
     
     # Interactive List Deletion
     if d.startswith("del_reminder_"):
