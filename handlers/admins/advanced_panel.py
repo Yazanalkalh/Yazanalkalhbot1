@@ -19,7 +19,7 @@ def is_admin(message: types.Message):
 async def advanced_panel_cmd(m: types.Message, state: FSMContext):
     if await state.get_state() is not None: await state.finish()
     await m.reply(
-        "🛠️ **لوحة التحكم المتقدمة (غرفة المحركات)**",
+        "🛠️ لوحة التحكم المتقدمة ",
         reply_markup=create_advanced_panel()
     )
 
@@ -30,7 +30,7 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     notification_settings = data_store.bot_data.setdefault('notification_settings', {})
 
     if d == "back_to_advanced":
-        await cq.message.edit_text("🛠️ **لوحة التحكم المتقدمة**", reply_markup=create_advanced_panel())
+        await cq.message.edit_text("🛠️ لوحة التحكم المتقدمة", reply_markup=create_advanced_panel())
         return
 
     # --- Logic for Toggle Buttons ---
@@ -54,18 +54,18 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     # --- Logic for Sub-Menus ---
     sub_menus = ["adv_notifications", "adv_manage_library", "adv_manage_channels", "adv_stats"]
     if d in sub_menus:
-        titles = {"adv_notifications": "🔔 **إعدادات الإشعارات**", "adv_manage_library": "📚 **إدارة المكتبة**", "adv_manage_channels": "🌐 **إدارة القنوات**", "adv_stats": "📊 **الإحصائيات**"}
+        titles = {"adv_notifications": "🔔 إعدادات الإشعارات", "adv_manage_library": "📚 **إدارة المكتبة**", "adv_manage_channels": "🌐 **إدارة القنوات**", "adv_stats": "📊 **الإحصائيات**"}
         await cq.message.edit_text(titles[d], reply_markup=get_advanced_submenu(d))
         return
 
     # --- Logic for System Status ---
     if d == "adv_system_status":
         stats = get_db_stats()
-        text = (f"🔬 **مراقبة حالة النظام**\n\n"
-                f"▫️ **DB:** {'متصلة ✅' if stats.get('ok') else '❌'}\n"
-                f"▫️ **المحتوى:** {stats.get('library_count', 0)} عنصر\n"
-                f"▫️ **المجدول:** {stats.get('scheduled_count', 0)} منشور\n"
-                f"▫️ **المستخدمون:** {stats.get('users_count', 0)} مستخدم")
+        text = (f"🔬 مراقبة حالة النظام\n\n"
+                f"▫️ DB: {'متصلة ✅' if stats.get('ok') else '❌'}\n"
+                f"▫️ المحتوى: {stats.get('library_count', 0)} عنصر\n"
+                f"▫️ المجدول: {stats.get('scheduled_count', 0)} منشور\n"
+                f"▫️ المستخدمون: {stats.get('users_count', 0)} مستخدم")
         await cq.message.edit_text(text, reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 العودة", callback_data="back_to_advanced")))
         return
         
@@ -73,8 +73,8 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "adv_view_library":
         content = get_all_library_content(20)
         kb = types.InlineKeyboardMarkup(row_width=1)
-        text = "📚 **محتويات المكتبة:**\nاضغط على عنصر لحذفه."
-        if not content: text = "📚 **مكتبة المحتوى فارغة.**"
+        text = "📚 محتويات المكتبة:\nاضغط على عنصر لحذفه."
+        if not content: text = "📚 مكتبة المحتوى فارغة."
         else:
             # Store the list in state to use short indices for callback_data
             await state.update_data(library_view=content)
@@ -104,8 +104,8 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "adv_view_pending_channels":
         pending = get_pending_channels()
         kb = types.InlineKeyboardMarkup(row_width=1)
-        text = "⏳ **طلبات الانضمام:**"
-        if not pending: text = "✅ **لا توجد طلبات جديدة.**"
+        text = "⏳ طلبات الانضمام:"
+        if not pending: text = "✅ لا توجد طلبات جديدة."
         else:
             for chat in pending:
                 kb.add(types.InlineKeyboardButton(f"❓ {chat['title']}", callback_data=f"adv_review_{chat['_id']}"))
@@ -115,7 +115,7 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
 
     if d == "adv_view_channels":
         approved = get_approved_channels()
-        text = "📋 **القنوات المعتمدة:**\n\n"
+        text = "📋 القنوات المعتمدة:\n\n"
         if not approved: text += "لا توجد قنوات معتمدة حاليًا."
         else:
             for chat in approved:
@@ -144,7 +144,7 @@ async def advanced_callbacks_cmd(cq: types.CallbackQuery, state: FSMContext):
     if d == "adv_set_force_channel":
         await state.set_state(AdminStates.waiting_for_force_channel_id)
         current = settings.get('force_channel_id', 'غير محدد')
-        await cq.message.edit_text(f"🔗 **تحديد قناة الإشتراك:**\n\nالحالية: `{current}`\n\nأرسل الآن ID القناة.", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 إلغاء", callback_data="back_to_advanced")))
+        await cq.message.edit_text(f"🔗 تحديد قناة الإشتراك:\n\nالحالية: `{current}`\n\nأرسل الآن ID القناة.", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 إلغاء", callback_data="back_to_advanced")))
         return
         
     await cq.answer("⚠️ لم يتم تنفيذ هذا الزر بعد.", show_alert=True)
