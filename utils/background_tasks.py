@@ -66,7 +66,7 @@ async def process_scheduled_posts():
 
                     # --- NEW: Success Notification Logic ---
                     if notification_settings.get('on_success', False):
-                        await bot.send_message(ADMIN_CHAT_ID, f"✅ **إشعار نجاح**\n\nتم نشر المحتوى المجدول بنجاح في القناة `{channel_id_to_post}`.")
+                        await bot.send_message(ADMIN_CHAT_ID, f"✅ إشعار نجاح\n\nتم نشر المحتوى المجدول بنجاح في القناة `{channel_id_to_post}`.")
 
                 except Exception as e:
                     print(f"SCHEDULED POST SEND ERROR for post {post['_id']}: {e}")
@@ -76,8 +76,8 @@ async def process_scheduled_posts():
                         error_message = str(e)
                         await bot.send_message(
                             ADMIN_CHAT_ID,
-                            f"⚠️ **إشعار فشل**\n\nفشلت في نشر المحتوى المجدول في القناة `{channel_id_to_post}`.\n\n"
-                            f"**سبب الخطأ:**\n`{error_message}`\n\n"
+                            f"⚠️ إشعار فشل \n\nفشلت في نشر المحتوى المجدول في القناة `{channel_id_to_post}`.\n\n"
+                            f"سبب الخطأ:\n`{error_message}`\n\n"
                             "سيحاول البوت إعادة الإرسال في الدورة التالية."
                         )
 
@@ -92,7 +92,7 @@ async def startup_tasks(dp):
     try:
         await bot.send_message(
             ADMIN_CHAT_ID,
-            "✅ **البوت يعمل بنجاح!**\n\n- <b>الحالة:</b> متصل ونشط\n- <b>الخادم:</b> يعمل"
+            "✅ البوت يعمل بنجاح!\n\n- <b>الحالة:</b> متصل ونشط\n- <b>الخادم:</b> يعمل"
         )
         asyncio.create_task(schedule_channel_messages())
         asyncio.create_task(process_scheduled_posts())
