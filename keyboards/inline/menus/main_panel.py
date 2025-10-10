@@ -4,7 +4,7 @@ def create_admin_panel() -> InlineKeyboardMarkup:
     """Creates the main admin control panel keyboard."""
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        InlineKeyboardButton("📝 الردود الديناميكية", callback_data="admin_dyn_replies"),
+        InlineKeyboardButton("📝 الردود التلقائية ", callback_data="admin_dyn_replies"),
         InlineKeyboardButton("💭 إدارة التذكيرات", callback_data="admin_reminders"),
         InlineKeyboardButton("📢 منشورات القناة", callback_data="admin_channel"),
         InlineKeyboardButton("🚫 إدارة الحظر", callback_data="admin_ban"),
