@@ -1,9 +1,5 @@
-aiogram==2.25.2
-pymongo
-dnspython
+python-telegram-bot
+pymongo[srv]
 python-dotenv
-Flask==2.2.2
-Werkzeug==2.2.3
-hijri-converter==2.3.1
+hijri-converter
 pytz
-Babel
