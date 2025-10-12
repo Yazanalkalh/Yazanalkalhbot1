@@ -1,39 +1,53 @@
-# -*- coding: utf-8 -*-
+import os
+import sys
+import atexit
+from threading import Thread
 
-import logging
-from telegram.ext import Application
+# --- Lock File logic (Unchanged) ---
+LOCK_FILE = "bot.lock"
+def create_lock_file():
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f: pid = int(f.read().strip())
+            if os.path.exists(f"/proc/{pid}"):
+                print(f"❌ FATAL: Another instance (PID: {pid}) is already running.")
+                sys.exit(1)
+            else: os.remove(LOCK_FILE)
+        except (IOError, ValueError): os.remove(LOCK_FILE)
+    with open(LOCK_FILE, "w") as f: f.write(str(os.getpid()))
+    print(f"✅ Lock file created for PID: {os.getpid()}.")
+def remove_lock_file():
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
+        print("✅ Lock file removed on clean exit.")
+atexit.register(remove_lock_file)
+create_lock_file()
+# -----------------------------------
 
-# --- شرح ---
-# هذا هو الملف الذي تقوم بتشغيله. وظيفته تجميع كل الأجزاء معاً.
-# هو مثل المايسترو الذي يقود الأوركسترا
+from aiogram.utils import executor
+from loader import dp
+from handlers import register_all_handlers
+# NOTE: We no longer import the text_manager_handler here. It's now handled by the HR manager.
+from utils.background_tasks import startup_tasks
+from web_server import run_web_server
+import data_store
 
-from config import TELEGRAM_TOKEN
-from bot.database.manager import db
-
-from bot.handlers.user.start import start_handler
-from bot.handlers.user.callbacks import user_callback_handler
-from bot.handlers.admin.main_panel import admin_handler
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-def main() -> None:
-    if db is None:
-        logger.error("لا يمكن تشغيل البوت بسبب فشل الاتصال بقاعدة البيانات.")
-        return
-        
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+async def on_startup(dispatcher):
+    """Function to run on bot startup."""
+    data_store.initialize_data()
     
-    # هنا نقوم بتسجيل كل المعالجات (الأوامر والأزرار)
-    application.add_handler(start_handler)
-    application.add_handler(user_callback_handler)
-    application.add_handler(admin_handler)
-
-    logger.info("البوت قيد التشغيل...")
-    application.run_polling()
+    # This single line now registers ALL handlers in the correct order.
+    register_all_handlers(dispatcher)
+    
+    await startup_tasks(dispatcher)
 
 if __name__ == '__main__':
-    main()
+    try:
+        web_thread = Thread(target=run_web_server, daemon=True)
+        web_thread.start()
+        print("Starting bot polling...")
+        executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot stopped.")
+    finally:
+        remove_lock_file()
